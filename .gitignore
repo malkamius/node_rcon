@@ -39,7 +39,6 @@ coverage/
 
 # RCON Server settinsgs
 config.local.json
-config.json
 
 .github/
 package-lock.json
