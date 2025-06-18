@@ -262,11 +262,11 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
             return { statusMap };
           });
         } else if (msg.type === 'output' && msg.key && typeof msg.output === 'string') {
-          this.terminalManager.appendLine(msg.key, msg.output);
+          this.terminalManager.appendLine(msg.key, msg.output.replace(/\r?\n/g, '\r\n'));
           this.setState((prev) => ({ sessionVersion: prev.sessionVersion + 1 }));
         } else if (msg.type === 'chatMessage' && msg.key && typeof msg.output === 'string') {
           // Append chat message to terminal for the session
-          this.terminalManager.appendLine(msg.key, msg.output);
+          this.terminalManager.appendLine(msg.key, msg.output.replace(/\r?\n/g, '\r\n'));
           // If this is the active tab, force terminal refresh
           if (this.state.activeTab === msg.key) {
             this.setState(prev => ({ sessionVersion: prev.sessionVersion + 1 }));
