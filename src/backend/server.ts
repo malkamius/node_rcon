@@ -1,4 +1,5 @@
 
+
 import express from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
@@ -7,7 +8,18 @@ import fs from 'fs';
 import { getProfiles, saveProfiles } from './profiles';
 import { RconManager } from './rconManager';
 
-const config = JSON.parse(fs.readFileSync(path.join(__dirname, '../../config.json'), 'utf-8'));
+const configPath = path.join(__dirname, '../../config.json');
+const defaultConfig = {
+  webserver: {
+    host: '127.0.0.1',
+    port: 3000
+  },
+  servers: []
+};
+if (!fs.existsSync(configPath)) {
+  fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
+}
+const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 const app = express();
 const server = http.createServer(app);
