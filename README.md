@@ -19,20 +19,29 @@ Right now we are focusing on ARK Survival Ascended
 
 ## Getting Started
 
-### 1. Clone the Repository
+
+### 1. Install Node.js (if you don't have it)
+
+Download and install Node.js (includes npm) from [nodejs.org](https://nodejs.org/en/download/) for your platform.
+
+### 2. Clone the Repository
+
 
 ```sh
 git clone https://github.com/malkamius/node_rcon.git
 cd node_rcon
 ```
 
-### 2. Install Dependencies
+
+### 3. Install Dependencies
+
 
 ```sh
 npm install
 ```
 
-### 3. Build the Project
+
+### 4. Build the Project
 
 Build both backend and frontend:
 
@@ -47,7 +56,8 @@ npm run build:backend
 npm run build:frontend
 ```
 
-### 4. Run the Backend
+
+### 5. Run the Backend
 
 ```sh
 npm start
