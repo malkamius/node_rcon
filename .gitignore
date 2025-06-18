@@ -1,0 +1,45 @@
+# Node.js/TypeScript/React project .gitignore
+# Node modules
+node_modules/
+
+# Build output
+/dist/
+/build/
+/public/bundle.js
+/public/bundle.js.map
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# IDE/Editor files
+# share IDE settings
+#.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
+
+# Coverage
+coverage/
+
+# Misc
+*.log
+
+# RCON Server settinsgs
+config.local.json
+config.json
+
+.github/
+package-lock.json

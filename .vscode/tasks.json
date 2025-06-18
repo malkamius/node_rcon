@@ -1,0 +1,32 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Build TypeScript (Backend)",
+			"command": "npm run build:backend",
+			"group": "build",
+			"problemMatcher": [
+				"$tsc"
+			]
+		},
+		{
+			"type": "shell",
+			"label": "Build TypeScript (Frontend)",
+			"command": "npm run build:frontend",
+			"group": "build",
+			"problemMatcher": [
+				"$tsc"
+			]
+		},
+		{
+			"type": "shell",
+			"label": "Build All (Frontend & Backend)",
+			"command": "npm run build",
+			"group": "build",
+			"problemMatcher": [
+				"$tsc"
+			]
+		}
+	]
+}
