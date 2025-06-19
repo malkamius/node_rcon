@@ -1,0 +1,417 @@
+Game.ini
+
+All the following options can only be set in the [/script/shootergame.shootergamemode] section of Game.ini, located in the same folder as GameUserSettings.ini (see Configuration Files for its location). Specifying them on the command line will have no effect.
+ ASA 	 ASE 	Variable 	Description 	Since patch
+Missing.png 	Check mark.svg 	AutoPvEStartTimeSeconds 	Default value: 0.0
+Value type: float
+States when the PvE mode should start in a PvPvE server. Valid values are from 0 to 86400. Options bAutoPvETimer, bAutoPvEUseSystemTime and AutoPvEStopTimeSeconds must also be set. Note: although at code level it is defined as a floating point number, it is suggested to use an integer instead.	196.0
+Missing.png 	Check mark.svg 	AutoPvEStopTimeSeconds 	Default value: 0.0
+Value type: float
+States when the PvE mode should end in a PvPvE server. Valid values are from 0 to 86400. Options bAutoPvETimer, bAutoPvEUseSystemTime and AutoPvEStopTimeSeconds must also be set. Note: although at code level it is defined as a floating point number, it is suggested to use an integer instead.	196.0
+Check mark.svg 	Check mark.svg 	BabyCuddleGracePeriodMultiplier 	Default value: 1.0
+Value type: float
+Scales how long after delaying cuddling with the Baby before Imprinting Quality starts to decrease.	242.0
+Check mark.svg 	Check mark.svg 	BabyCuddleIntervalMultiplier 	Default value: 1.0
+Value type: float
+Scales how often babies needs attention for imprinting. More often means you'll need to cuddle with them more frequently to gain Imprinting Quality. Scales always according to default BabyMatureSpeedMultiplier value: set at 1.0 the imprint request is every 8 hours. See also The Imprinting formula how it affects the imprinting amount at each baby care/cuddle.	242.0
+Check mark.svg 	Check mark.svg 	BabyCuddleLoseImprintQualitySpeedMultiplier 	Default value: 1.0
+Value type: float
+Scales how fast Imprinting Quality decreases after the grace period if you haven't yet cuddled with the Baby.	242.0
+Check mark.svg 	Check mark.svg 	BabyFoodConsumptionSpeedMultiplier 	Default value: 1.0
+Value type: float
+Scales the speed that baby tames eat their food. A lower value decreases (by percentage) the food eaten by babies.	222.3
+Check mark.svg 	Check mark.svg 	BabyImprintAmountMultiplier 	Default value: 1.0
+Value type: float
+Scales the percentage each imprint provides. A higher value, will rise the amount of imprinting % at each baby care/cuddle, a lower value will decrease it. This multiplier is global, meaning it will affect the imprinting progression of every species. See also The Imprinting formula how it affects the imprinting amount at each baby care/cuddle.	312.35
+Check mark.svg 	Check mark.svg 	BabyImprintingStatScaleMultiplier 	Default value: 1.0
+Value type: float
+Scales how much of an effect on stats the Imprinting Quality has. Set it to 0 to effectively disable the system.	242.0
+Check mark.svg 	Check mark.svg 	BabyMatureSpeedMultiplier 	Default value: 1.0
+Value type: float
+Scales the maturation speed of babies. A higher number decreases (by percentage) time needed for baby tames to mature. See Times for Breeding tables for values at 1.0, see The Imprinting formula how it affects the imprinting amount at each baby care/cuddle.	219.0
+Missing.png 	Check mark.svg 	bAllowUnclaimDinos 	Default value: True
+Value type: boolean
+If False, prevents players to unclaim tame creatures.	Missing.png
+Missing.png 	Check mark.svg 	bAllowCustomRecipes 	Default value: True
+Value type: boolean
+If False, disabled custom RP-oriented Recipe/Cooking System (including Skill-Based results).	224.0
+Missing.png 	Check mark.svg 	bAllowFlyerSpeedLeveling 	Default value: False
+Value type: boolean
+Specifies whether flyer creatures can have their Movement Speed levelled up.	321.1
+Missing.png 	Check mark.svg 	bAllowPlatformSaddleMultiFloors 	Default value: False
+Value type: boolean
+If True, allows multiple platform floors.	260.0
+Check mark.svg 	Check mark.svg 	bAllowUnlimitedRespecs 	Default value: False
+Value type: boolean
+If True, allows more than one usage of Mindwipe Tonic without 24 hours cooldown.	260.0
+Missing.png 	Check mark.svg 	BaseTemperatureMultiplier 	Default value: 1.0
+Value type: float
+Specifies the map base temperature scaling factor: lower value makes the environment colder, higher value makes the environment hotter.	273.5
+Missing.png 	Check mark.svg 	bAutoPvETimer 	Default value: False
+Value type: boolean
+If True, enabled PvE mode in a PvPvE server at pre-specified times. The option bAutoPvEUseSystemTime determinates what kind of time to use, while AutoPvEStartTimeSeconds and AutoPvEStopTimeSeconds set the begin and end time of PvE mode.	196.0
+Missing.png 	Check mark.svg 	bAutoPvEUseSystemTime 	Default value: False
+Value type: boolean
+If True, PvE mode begin and end times in a PvPvE server will refer to the server system time instead of in-game world time. Options bAutoPvETimer, AutoPvEStartTimeSeconds and AutoPvEStopTimeSeconds must also be set.	196.0
+Missing.png 	Check mark.svg 	bAutoUnlockAllEngrams 	Default value: False
+Value type: boolean
+If True, unlocks all Engrams available. Ignores OverrideEngramEntries and OverrideNamedEngramEntries entries.	273.62
+Missing.png 	Check mark.svg 	bDisableDinoBreeding 	Default value: False
+Value type: boolean
+If True, prevents tames to be bred.	Missing.png
+Missing.png 	Check mark.svg 	bDisableDinoRiding 	Default value: False
+Value type: boolean
+If True, prevents players to ride tames.	254.5
+Missing.png 	Check mark.svg 	bDisableDinoTaming 	Default value: False
+Value type: boolean
+If True, prevents players to tame wild creatures.	254.5
+Check mark.svg 	Check mark.svg 	bDisableFriendlyFire 	Default value: False
+Value type: boolean
+If True, prevents Friendly-Fire (among tribe mates/tames/structures).	228.4
+Missing.png 	Check mark.svg 	bDisableLootCrates 	Default value: False
+Value type: boolean
+If True, prevents spawning of Loot crates (artifact creates will still spawn).	231.7
+Check mark.svg 	X mark.svg 	bDisablePhotoMode 	Default value: False
+Value type: boolean
+Defines if photo mode is allowed (False) or not (True).	Missing.png
+Check mark.svg 	Check mark.svg 	bDisableStructurePlacementCollision 	Default value: False
+Value type: boolean
+If True, allows for structures to clip into the terrain.	273.62
+Missing.png 	Check mark.svg 	bFlyerPlatformAllowUnalignedDinoBasing 	Default value: False
+Value type: boolean
+If True, Quetz platforms will allow any non-allied tame to base on them when they are flying.	218.3
+Check mark.svg 	Check mark.svg 	bIgnoreStructuresPreventionVolumes 	Default value: False
+Value type: boolean
+If True, enables building areas where normally it's not allowed, such around some maps' Obelisks, in the Aberration Portal and in Mission Volumes areas on Genesis: Part 1. Note: in Genesis: Part 1 this settings is enabled by default and there is an ad hoc settings called bGenesisUseStructuresPreventionVolumes to disable it.	Missing.png
+Missing.png 	Check mark.svg 	bIncreasePvPRespawnInterval 	Default value: True
+Value type: boolean
+If False, disables PvP additional re-spawn time (IncreasePvPRespawnIntervalBaseAmount) that scales (IncreasePvPRespawnIntervalMultiplier) when a player is killed by a team within a certain amount of time (IncreasePvPRespawnIntervalCheckPeriod).	196.0
+Missing.png 	Check mark.svg 	bOnlyAllowSpecifiedEngrams 	Default value: False
+Value type: boolean
+If True, any Engram not explicitly specified by OverrideEngramEntries or OverrideNamedEngramEntries list will be hidden. All Items and Blueprints based on hidden Engrams will be removed.	187.0
+Missing.png 	Check mark.svg 	bPassiveDefensesDamageRiderlessDinos 	Default value: False
+Value type: boolean
+If True, allows spike walls to damage wild/riderless creatures.	224.0
+Missing.png 	Check mark.svg 	bPvEAllowTribeWar 	Default value: True
+Value type: boolean
+If False, disables capability for Tribes to officially declare war on each other for mutually-agreed-upon period of time.	223.0
+Missing.png 	Check mark.svg 	bPvEAllowTribeWarCancel 	Default value: False
+Value type: boolean
+If True, allows cancellation of an agreed-upon war before it has actually started.	223.0
+Check mark.svg 	Check mark.svg 	bPvEDisableFriendlyFire 	Default value: False
+Value type: boolean
+If True, disabled Friendly-Fire (among tribe mates/tames/structures) in PvE servers.	202.0
+Missing.png 	Check mark.svg 	bShowCreativeMode 	Default value: False
+Value type: boolean
+If True, enables creative mode.	278.0
+Missing.png 	Check mark.svg 	bUseCorpseLocator 	Default value: True
+Value type: boolean
+If False, prevents survivors to see a green light beam at the location of their dead body.	259.0
+Check mark.svg 	Check mark.svg 	bUseDinoLevelUpAnimations 	Default value: True
+Value type: boolean
+If False, tame creatures on level-up will not perform the related animation.	Missing.png
+Check mark.svg 	Check mark.svg 	bUseSingleplayerSettings 	Default value: False
+Value type: boolean
+If True, all game settings will be more balanced for an individual player experience. Useful for dedicated server with a very small amount of players. See Single Player Settings section for more details.	259.0
+Missing.png 	Check mark.svg 	bUseTameLimitForStructuresOnly 	Default value: False
+Value type: boolean
+If True will make Tame Units only be applied and used for Platforms with Structures and Rafts effectively disabling Tame Units for tames without Platform Structures.	259.0
+Check mark.svg 	Check mark.svg 	ConfigAddNPCSpawnEntriesContainer 	Default value: N/A
+Value type: (...)
+Adds specific creatures in spawn areas. See Creature Spawn related section for more detail.	248.0
+Missing.png 	Check mark.svg 	ConfigOverrideItemCraftingCosts 	Default value: N/A
+Value type: (...)
+Overrides items crafting resource requirements. See Item related section for more details.	242.0
+Missing.png 	Check mark.svg 	ConfigOverrideItemMaxQuantity 	Default value: N/A
+Value type: (...)
+Overrides items stack size on a per-item basis. See Item related section for more details.	292.100
+Missing.png 	Check mark.svg 	ConfigOverrideNPCSpawnEntriesContainer 	Default value: N/A
+Value type: (...)
+Overrides specific creatures in spawn areas. See Creature Spawn related section for more details.	248.0
+Missing.png 	Check mark.svg 	ConfigOverrideSupplyCrateItems 	Default value: N/A
+Value type: (...)
+Overrides items contained in loot crates. See Items related section for more details.	242.0
+Missing.png 	Check mark.svg 	ConfigSubtractNPCSpawnEntriesContainer 	Default value: N/A
+Value type: (...)
+Removes specific creatures in spawn areas. See Creature Spawn related section for more detail.	248.0
+Check mark.svg 	Check mark.svg 	CraftingSkillBonusMultiplier 	Default value: 1.0
+Value type: float
+Scales the bonus received from upgrading the Crafting Skill.	259.32
+Check mark.svg 	Check mark.svg 	CraftXPMultiplier 	Default value: 1.0
+Value type: float
+Scales the amount of XP earned for crafting.	243.0
+Check mark.svg 	Check mark.svg 	CropDecaySpeedMultiplier 	Default value: 1.0
+Value type: float
+Scales the speed of crop decay in plots. A higher value decrease (by percentage) speed of crop decay in plots.	218.0
+Check mark.svg 	Check mark.svg 	CropGrowthSpeedMultiplier 	Default value: 1.0
+Value type: float
+Scales the speed of crop growth in plots. A higher value increases (by percentage) speed of crop growth.	218.0
+Check mark.svg 	Check mark.svg 	CustomRecipeEffectivenessMultiplier 	Default value: 1.0
+Value type: float
+Scales the effectiveness of custom recipes. A higher value increases (by percentage) their effectiveness.	226.0
+Check mark.svg 	Check mark.svg 	CustomRecipeSkillMultiplier 	Default value: 1.0
+Value type: float
+Scales the effect of the players crafting speed level that is used as a base for the formula in creating a custom recipe. A higher number increases (by percentage) the effect.	226.0
+Check mark.svg 	Check mark.svg 	DestroyTamesOverLevelClamp 	Default value: 0
+Value type: integer
+Tames that exceed that level will be deleted on server start. Official servers have it set to 450.	255.0
+Missing.png 	Check mark.svg 	DinoClassDamageMultipliers 	Default value: N/A
+Value type: (...)
+Globally overrides wild creatures damages. See Creature Stats related section for more detail.	194.0
+Missing.png 	Check mark.svg 	DinoClassResistanceMultipliers 	Default value: N/A
+Value type: (...)
+Globally overrides wild creatures resistance. See Creature Stats related section for more detail.	194.0
+Missing.png 	Check mark.svg 	DinoHarvestingDamageMultiplier 	Default value: 3.2
+Value type: float
+Scales the damage done to a harvestable item/entity by a tame. A higher number increases (by percentage) the speed of harvesting.	321.1
+Missing.png 	Check mark.svg 	DinoSpawnWeightMultipliers 	Default value: N/A
+Value type: (...)
+Globally overrides creatures spawns likelihood. See Creature Spawn related section for more detail.	179.0
+Missing.png 	Check mark.svg 	DinoTurretDamageMultiplier 	Default value: 1.0
+Value type: float
+Scales the damage done by Turrets towards a creature. A higher values increases it (by percentage).	231.4
+Check mark.svg 	Check mark.svg 	EggHatchSpeedMultiplier 	Default value: 1.0
+Value type: float
+Scales the time needed for a fertilised egg to hatch. A higher value decreases (by percentage) that time.	219.0
+Missing.png 	Check mark.svg 	EngramEntryAutoUnlocks 	Default value: N/A
+Value type: (...)
+Automatically unlocks the specified Engram when reaching the level specified. See Engram Entries related section for more detail.	273.62
+Missing.png 	Check mark.svg 	ExcludeItemIndices 	Default value: N/A
+Value type: integer
+Excludes an item from supply crates specifying its Item ID. You can have multiple lines of this option.	Missing.png
+Missing.png 	Check mark.svg 	FastDecayInterval 	Default value: 43200
+Value type: integer
+Specifies the decay period for "Fast Decay" structures (such as pillars or lone foundations). Value is in seconds. FastDecayUnsnappedCoreStructures in GameUserSettings.ini must be set to True as well to take any effect.	259.0
+Missing.png 	Check mark.svg 	FishingLootQualityMultiplier 	Default value: 1.0
+Value type: float
+Sets the quality of items that have a quality when fishing. Valid values are from 1.0 to 5.0.	260.0
+Missing.png 	Check mark.svg 	FuelConsumptionIntervalMultiplier 	Default value: 1.0
+Value type: float
+Defines the interval of fuel consumption.	264.0
+Check mark.svg 	Check mark.svg 	GenericXPMultiplier 	Default value: 1.0
+Value type: float
+Scales the amount of XP earned for generic XP (automatic over time).	243.0
+Missing.png 	Check mark.svg 	GlobalCorpseDecompositionTimeMultiplier 	Default value: 1.0
+Value type: float
+Scales the decomposition time of corpses, (player and creature), globally. Higher values prolong the time.	189.0
+Check mark.svg 	Check mark.svg 	GlobalItemDecompositionTimeMultiplier 	Default value: 1.0
+Value type: float
+Scales the decomposition time of dropped items, loot bags etc. globally. Higher values prolong the time.	189.0
+Missing.png 	Check mark.svg 	GlobalPoweredBatteryDurabilityDecreasePerSecond 	Default value: 3.0
+Value type: float
+Specifies the rate at which charge batteries are used in electrical objects.	275.0
+Check mark.svg 	Check mark.svg 	GlobalSpoilingTimeMultiplier 	Default value: 1.0
+Value type: float
+Scales the spoiling time of perishables globally. Higher values prolong the time.	189.0
+Missing.png 	Check mark.svg 	HairGrowthSpeedMultiplier 	Default value: 1.0
+Value type: float
+Scales the hair growth. Higher values increase speed of growth.	254.0
+Check mark.svg 	Check mark.svg 	HarvestResourceItemAmountClassMultipliers 	Default value: N/A
+Value type: (...)
+Scales on a per-resource type basis, the amount of resources harvested. See Items related section for more details.	189.0
+Check mark.svg 	Check mark.svg 	HarvestXPMultiplier 	Default value: 1.0
+Value type: float
+Scales the amount of XP earned for harvesting.	243.0
+Missing.png 	Check mark.svg 	IncreasePvPRespawnIntervalBaseAmount 	Default value: 60.0
+Value type: float
+If bIncreasePvPRespawnInterval is True, sets the additional PvP re-spawn time in seconds that scales (IncreasePvPRespawnIntervalMultiplier) when a player is killed by a team within a certain amount of time (IncreasePvPRespawnIntervalCheckPeriod).	196.0
+Missing.png 	Check mark.svg 	IncreasePvPRespawnIntervalCheckPeriod 	Default value: 300.0
+Value type: float
+If bIncreasePvPRespawnInterval is True, sets the amount of time in seconds within a player re-spawn time increases (IncreasePvPRespawnIntervalBaseAmount) and scales (IncreasePvPRespawnIntervalMultiplier) when it is killed by a team in PvP.	196.0
+Missing.png 	Check mark.svg 	IncreasePvPRespawnIntervalMultiplier 	Default value: 2.0
+Value type: float
+If bIncreasePvPRespawnInterval is True, scales the PvP additional re-spawn time (IncreasePvPRespawnIntervalBaseAmount) when a player is killed by a team within a certain amount of time (IncreasePvPRespawnIntervalCheckPeriod).	196.0
+Missing.png 	Check mark.svg 	ItemStatClamps[<attribute>] 	Default value: N/A
+Value type: value
+Globally clamps item stats. See Items related section for more details. Requires ?ClampItemStats=true option in the command line.	255.0
+Check mark.svg 	Check mark.svg 	KillXPMultiplier 	Default value: 1.0
+Value type: float
+Scale the amount of XP earned for a kill.	243.0
+Check mark.svg 	Check mark.svg 	LayEggIntervalMultiplier 	Default value: 1.0
+Value type: float
+Scales the time between eggs are spawning / being laid. Higher number increases it (by percentage).	218.0
+Missing.png 	Check mark.svg 	LevelExperienceRampOverrides 	Default value: N/A
+Value type: (...)
+Configures the total number of levels available to players and tame creatures and the experience points required to reach each level. See Players and tames levels override section for more details.	179.0
+Missing.png 	Check mark.svg 	LimitNonPlayerDroppedItemsCount 	Default value: 0
+Value type: integer
+Limits the number of dropped items in the area defined by LimitNonPlayerDroppedItemsRange. Official servers have it set to 600.	302.4
+Missing.png 	Check mark.svg 	LimitNonPlayerDroppedItemsRange 	Default value: 0
+Value type: integer
+Sets the area range (in Unreal Units) in which the option LimitNonPlayerDroppedItemsCount applies. Official servers have it set to 1600.	302.4
+Check mark.svg 	Check mark.svg 	MatingIntervalMultiplier 	Default value: 1.0
+Value type: float
+Scales the interval between tames can mate. A lower value decreases it (on a percentage scale). Example: a value of 0.5 would allow tames to mate 50% sooner.	219.0
+Check mark.svg 	Check mark.svg 	MatingSpeedMultiplier 	Default value: 1.0
+Value type: float
+Scales the speed at which tames mate with each other. A higher value increases it (by percentage). Example: MatingSpeedMultiplier=2.0 would cause tames to complete mating in half the normal time.	Missing.png
+Missing.png 	Check mark.svg 	MaxAlliancesPerTribe 	Default value: N/A
+Value type: integer
+If set, defines the maximum alliances a tribe can form or be part of.	265.0
+Missing.png 	Check mark.svg 	MaxFallSpeedMultiplier 	Default value: 1.0
+Value type: float
+Defines the falling speed multiplier at which players starts taking fall damage. The falling speed is based on the time players spent in the air while having a negated Z axis velocity meaning that the higher this setting is, the longer players can fall without taking fall damage. For example, having it set to 0.1 means players will no longer survive a regular jump while having it set very high such as to 100.0 means players will survive a fall from the sky limit, etc. This setting doesn't affect the gravity scale of the players so there won't be any physics difference to the character movements.	279.224
+Missing.png 	Check mark.svg 	MaxNumberOfPlayersInTribe 	Default value: 0
+Value type: integer
+Sets the maximum survivors allowed in a tribe. A value of 1 effectively disables tribes. The default value of 0 means there is no limit about how many survivors can be in a tribe.	242.0
+Missing.png 	Check mark.svg 	MaxTribeLogs 	Default value: 400
+Value type: integer
+Sets how many Tribe log entries are displayed for each tribe.	242.0
+Missing.png 	Check mark.svg 	MaxTribesPerAlliance 	Default value: N/A
+Value type: integer
+If set, defines the maximum of tribes in an alliance.	265.0
+Missing.png 	Check mark.svg 	NPCReplacements 	Default value: N/A
+Value type: (...)
+Globally replaces specific creatures with another using class names. See Creature Spawn related section for more detail.	196.0
+Missing.png 	Check mark.svg 	OverrideMaxExperiencePointsDino 	Default value: N/A
+Value type: integer
+Overrides the max XP cap of tame characters by exact specified amount.	189.0
+Missing.png 	Check mark.svg 	OverrideMaxExperiencePointsPlayer 	Default value: N/A
+Value type: integer
+Overrides the max XP cap of players characters by exact specified amount.	189.0
+Missing.png 	Check mark.svg 	OverrideEngramEntries 	Default value: N/A
+Value type: (...)
+Configures the status and requirements for learning an engram, specified by its index. See Engram Entries related section for more detail.	179.0
+Check mark.svg 	Check mark.svg 	OverrideNamedEngramEntries 	Default value: N/A
+Value type: (...)
+Configures the status and requirements for learning an engram, specified by its name. See Engram Entries related section for more detail.	179.0
+Missing.png 	Check mark.svg 	OverridePlayerLevelEngramPoints 	Default value: N/A
+Value type: integer
+Configures the number of engram points granted to players for each level gained. This option must be repeated for each player level set on the server, e.g.: if there are 65 player levels available this option should appear 65 times, with the first setting the engram points for reaching level 1, the next one setting engram points for level 2 and so on, all the way to the 65th which configures engram points for level 65.
+
+OverridePlayerLevelEngramPoints=5
+OverridePlayerLevelEngramPoints=20
+...
+
+OverridePlayerLevelEngramPoints=300	179.0
+Missing.png 	Check mark.svg 	PassiveTameIntervalMultiplier 	Default value: 1.0
+Value type: float
+Scales how often a survivor get tame requests for passive tame creatures.	278.0
+Check mark.svg 	Check mark.svg 	PerLevelStatsMultiplier_Player[<integer>] 	Default value: N/A
+Value type: float
+Scales Player stats. See Level stats related section for more detail.	202.0
+Missing.png 	Check mark.svg 	PerLevelStatsMultiplier_DinoTamed<_type>[<integer>] 	Default value: N/A
+Value type: float
+Scales tamed creature stats. See Level stats related section for more detail.	202.0
+Missing.png 	Check mark.svg 	PerLevelStatsMultiplier_DinoWild[<integer>] 	Default value: N/A
+Value type: float
+Scales wild creatures stats. See Level stats related section for more detail.	202.0
+Check mark.svg 	X mark.svg 	PhotoModeRangeLimit 	Default value: 3000
+Value type: integer
+Defines the maximum distance between photo mode camera position and player position.	Missing.png
+Missing.png 	Check mark.svg 	PlayerBaseStatMultipliers[<attribute>] 	Default value: N/A
+Value type: multiplier
+Changes the base stats of a player by multiplying with the default value. Meaning the start stats of a new spawned character. See Stats related section for more detail.	254.6
+Missing.png 	Check mark.svg 	PlayerHarvestingDamageMultiplier 	Default value: 1.0
+Value type: float
+Scales the damage done to a harvestable item/entity by a Player. A higher value increases it (by percentage): the higher number, the faster the survivors collects.	231.1
+Check mark.svg 	Check mark.svg 	PoopIntervalMultiplier 	Default value: 1.0
+Value type: float
+Scales how frequently survivors can poop. Higher value decreases it (by percentage)	218.0
+Missing.png 	Check mark.svg 	PreventBreedingForClassNames 	Default value: N/A
+Value type: "<string>"
+Prevents breeding of specific creatures via classname. E.g. PreventBreedingForClassNames="Argent_Character_BP_C". Creature classnames can be found on the Creature IDs page.	Missing.png
+Missing.png 	Check mark.svg 	PreventDinoTameClassNames 	Default value: N/A
+Value type: "<string>"
+Prevents taming of specific dinosaurs via classname. E.g. PreventDinoTameClassNames="Argent_Character_BP_C". Dino classnames can be found on the Creature IDs page.	194.0
+Missing.png 	Check mark.svg 	PreventOfflinePvPConnectionInvincibleInterval 	Default value: 5.0
+Value type: float
+Specifies the time in seconds a player cannot take damages after logged-in.	278.0
+Missing.png 	Check mark.svg 	PreventTransferForClassNames 	Default value: N/A
+Value type: "<string>"
+Prevents transfer of specific creatures via classname. E.g. PreventTransferForClassNames="Argent_Character_BP_C"Creature classnames can be found on the Creature IDs page.	326.13
+Missing.png 	Check mark.svg 	PvPZoneStructureDamageMultiplier 	Default value: 6.0
+Value type: float
+Specifies the scaling factor for damage structures take within caves. The lower the value, the less damage the structure takes (i.e. setting to 1.0 will make structure built in or near a cave receive the same amount of damage as those built on the surface).	187.0
+Check mark.svg 	Check mark.svg 	ResourceNoReplenishRadiusPlayers 	Default value: 1.0
+Value type: float
+Controls how resources regrow closer or farther away from players. Values higher than 1.0 increase the distance around players where resources are not allowed to grow back. Values between 0 and 1.0 will reduce it.	196.0
+Check mark.svg 	Check mark.svg 	ResourceNoReplenishRadiusStructures 	Default value: 1.0
+Value type: float
+Controls how resources regrow closer or farther away from structures Values higher than 1.0 increase the distance around structures where resources are not allowed to grow back. Values between 0 and 1.0 will reduce it.	196.0
+Check mark.svg 	Check mark.svg 	SpecialXPMultiplier 	Default value: 1.0
+Value type: float
+Scale the amount of XP earned for SpecialEvent.	243.0
+Missing.png 	Check mark.svg 	StructureDamageRepairCooldown 	Default value: 180
+Value type: integer
+Option for cooldown period on structure repair from the last time damaged. Set to 180 seconds by default, 0 to disable it.	222.0
+Missing.png 	Check mark.svg 	SupplyCrateLootQualityMultiplier 	Default value: 1.0
+Value type: float
+Increases the quality of items that have a quality in the supply crates. Valid values are from 1.0 to 5.0. The quality also depends on the Difficulty Offset.	260.0
+Missing.png 	Check mark.svg 	TamedDinoCharacterFoodDrainMultiplier 	Default value: 1.0
+Value type: float
+Scales how fast tame creatures consume food.	278.0
+Missing.png 	Check mark.svg 	TamedDinoClassDamageMultipliers 	Default value: N/A
+Value type: (...)
+Globally overrides tamed creatures damages. See Creature Stats related section for more details.	194.0
+Missing.png 	Check mark.svg 	TamedDinoClassResistanceMultipliers 	Default value: N/A
+Value type: (...)
+Globally overrides tamed creatures resistance. See Creature Stats related section for more details.	194.0
+Missing.png 	Check mark.svg 	TamedDinoTorporDrainMultiplier 	Default value: 1.0
+Value type: float
+Scales how fast tamed creatures lose torpor.	278.0
+Missing.png 	Check mark.svg 	TribeSlotReuseCooldown 	Default value: 0.0
+Value type: float
+Locks a tribe slot for the value in seconds, e.g.: a value of 3600 would mean that if a survivor leaves the tribe, their place cannot be taken by another survivor (or re-join) for 1 hour. Used on Official Small Tribes Servers.	280.114
+Missing.png 	Check mark.svg 	UseCorpseLifeSpanMultiplier 	Default value: 1.0
+Value type: float
+Modifies corpse and dropped box lifespan.	275.0
+Missing.png 	Check mark.svg 	WildDinoCharacterFoodDrainMultiplier 	Default value: 1.0
+Value type: float
+Scales how fast wild creatures consume food.	278.0
+Missing.png 	Check mark.svg 	WildDinoTorporDrainMultiplier 	Default value: 1.0
+Value type: float
+Scales how fast wild creatures lose torpor.	278.0
+Turrets limit
+Missing.png 	Check mark.svg 	bHardLimitTurretsInRange 	Default value: False
+Value type: boolean
+If True, enables the retroactive turret hard limit (100 turrets within a 10k unit radius).	278.0
+Missing.png 	Check mark.svg 	bLimitTurretsInRange 	Default value: True
+Value type: boolean
+If False, doesn't limit the maximum allowed automated turrets (including Plant Species X) in a certain range.	274.0
+Missing.png 	Check mark.svg 	LimitTurretsNum 	Default value: 100
+Value type: integer
+Determines the maximum number of turrets that are allowed in the area.	274.0
+Missing.png 	Check mark.svg 	LimitTurretsRange 	Default value: 10000.0
+Value type: float
+Determines the area in Unreal Unit in which turrets are added towards the limit.	274.0
+Genesis
+Missing.png 	Check mark.svg 	AdjustableMutagenSpawnDelayMultiplier 	Default value: 1.0
+Value type: float
+Scales the Mutagen spawn rates. By default, The game attempts to spawn them every 8 hours on dedicated servers, and every hour on non-dedicated servers and single-player. Rising this value will rise the re-spawn interval, lowering will make it shorter.	329.5
+Check mark.svg 	Check mark.svg 	BaseHexagonRewardMultiplier 	Default value: 1.0
+Value type: float
+Scales the missions score hexagon rewards. Also scales token rewards in Club Ark (ASA).	329.5
+Missing.png 	Check mark.svg 	bDisableHexagonStore 	Default value: False
+Value type: boolean
+If True, disables the Hexagon store	329.5
+Missing.png 	Check mark.svg 	bDisableDefaultMapItemSets 	Default value: False
+Value type: boolean
+If True, disables Genesis 2 Tek Suit on Spawn.	329.7
+Missing.png 	Check mark.svg 	bDisableGenesisMissions 	Default value: False
+Value type: boolean
+If True, disables missions on Genesis.	306.79
+Missing.png 	Check mark.svg 	bDisableWorldBuffs 	Default value: False
+Value type: boolean
+If True, disables world effects from Missions (Genesis: Part 2) altogether. To disable specific world buffs, see DisableWorldBuffs of #DynamicConfig.	329.51
+Missing.png 	Check mark.svg 	bEnableWorldBuffScaling 	Default value: False
+Value type: boolean
+If True, makes world effects from Missions (Genesis: Part 2) scale from server settings, rather than add/subtract a flat amount to the value at runtime.	329.25
+Missing.png 	Check mark.svg 	bGenesisUseStructuresPreventionVolumes 	Default value: False
+Value type: boolean
+If True, disables building in mission areas on Genesis: Part 1.	306.53
+Missing.png 	Check mark.svg 	bHexStoreAllowOnlyEngramTradeOption 	Default value: False
+Value type: boolean
+If True, allows only Engrams to be sold on the Hex Store, disables everything else.	329.5
+Check mark.svg 	Check mark.svg 	HexagonCostMultiplier 	Default value: 1.0
+Value type: float
+Scales the hexagon cost of items in the Hexagon store. Also scales token cost of items in Club Ark (ASA).	329.5
+Missing.png 	Check mark.svg 	MutagenLevelBoost[<Stat_ID>] 	Default value: N/A
+Value type: integer
+States the number of levels  Mutagen adds to tames with wild ancestry. See Stats related section for more details.	329.51
+Missing.png 	Check mark.svg 	MutagenLevelBoost_Bred[<Stat_ID>] 	Default value: N/A
+Value type: integer
+Alike as MutagenLevelBoost, but for bred tames. See Stats related section for more details.	329.51
+Missing.png 	Check mark.svg 	WorldBuffScalingEfficacy 	Default value: 1.0
+Value type: float
+Makes world effects from Missions (Genesis: Part 2) scaling more or less effective when setting bEnableWorldBuffScaling=True. 1 would be default, 0.5 would be 50% less effective, 100 would be 100x more effective.

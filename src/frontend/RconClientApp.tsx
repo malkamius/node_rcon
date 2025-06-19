@@ -7,6 +7,7 @@ import { DisconnectedModal } from './DisconnectedModal';
 import { TabManager } from './TabManager';
 import { TerminalArea } from './TerminalArea';
 import { CurrentPlayersWindow } from './CurrentPlayersWindow';
+import { ServerConfigTab } from './ServerConfigTab';
 
 // Main App class for RCON Manager UI
 interface ServerProfile {
@@ -27,6 +28,7 @@ interface ServerProfile {
   };
 }
 
+type ActivityTab = 'rcon' | 'serverConfig';
 interface RconClientAppState {
   command: string;
   commandHistory: string[];
@@ -42,6 +44,7 @@ interface RconClientAppState {
   currentPlayersWidth?: number;
   profileLayoutVersion?: number;
   disconnected?: boolean;
+  activity: ActivityTab;
 }
 
 export class RconClientApp extends React.Component<{}, RconClientAppState> {
@@ -87,6 +90,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
       sessionVersion: 0,
       currentPlayers: {},
       profileLayoutVersion: 0,
+      activity: 'rcon',
     };
     this.reconnectTimer = null;
     this.inputRef = React.createRef();
@@ -469,7 +473,72 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
     });
   };
   render() {
-    const { command, commandHistory, showHistoryDropdown, showServerModal, serverProfiles, sessionVersion, currentPlayers, activeTab, profileLayoutVersion } = this.state;
+    const { activity } = this.state;
+    // Tab bar for activity switching
+    return (
+      <div style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden'}}>
+        {/* Activity Tab Bar */}
+        <div style={{display: 'flex', alignItems: 'center', background: '#222', color: '#fff', padding: '0.5em 1em', height: '3em'}}>
+          <span style={{fontWeight: 'bold', fontSize: '1.2em', marginRight: '2em'}}>RCON Manager</span>
+          <div style={{display: 'flex', gap: '1em'}}>
+            <button
+              style={{
+                background: activity === 'rcon' ? '#444' : 'transparent',
+                color: '#fff',
+                border: 'none',
+                borderBottom: activity === 'rcon' ? '2px solid #fff' : '2px solid transparent',
+                fontWeight: activity === 'rcon' ? 'bold' : 'normal',
+                fontSize: '1em',
+                padding: '0.5em 1em',
+                cursor: 'pointer',
+              }}
+              onClick={() => this.setState({ activity: 'rcon' })}
+            >RCon</button>
+            <button
+              style={{
+                background: activity === 'serverConfig' ? '#444' : 'transparent',
+                color: '#fff',
+                border: 'none',
+                borderBottom: activity === 'serverConfig' ? '2px solid #fff' : '2px solid transparent',
+                fontWeight: activity === 'serverConfig' ? 'bold' : 'normal',
+                fontSize: '1em',
+                padding: '0.5em 1em',
+                cursor: 'pointer',
+              }}
+              onClick={() => this.setState({ activity: 'serverConfig' })}
+            >Server Configuration</button>
+          </div>
+          <span style={{flex: 1}} />
+          <button style={{marginRight: '1em'}} onClick={this.handleOpenServerModal}>Manage Servers</button>
+        </div>
+        {/* Main content area */}
+        <div style={{flex: 1, minHeight: 0, overflow: 'hidden'}}>
+          {activity === 'rcon' ? (
+            // ...existing code for RCon tab...
+            this.renderRconTab()
+          ) : (
+            <ServerConfigTab
+              serverProfiles={this.state.serverProfiles}
+              onManageServers={this.handleOpenServerModal}
+            />
+          )}
+        </div>
+        {/* Disconnected Modal */}
+        <DisconnectedModal show={!!this.state.disconnected} onRetry={this.handleRetryConnection} />
+        {/* Server Management Modal */}
+        <ServerManagementModal
+          show={this.state.showServerModal}
+          onClose={this.handleCloseServerModal}
+          serverProfiles={this.state.serverProfiles}
+          onSave={this.handleSaveServerProfiles}
+        />
+      </div>
+    );
+  }
+
+  // Extracted RCon tab rendering for clarity
+  renderRconTab() {
+    const { command, commandHistory, showHistoryDropdown, serverProfiles, sessionVersion, currentPlayers, activeTab, profileLayoutVersion } = this.state;
     const session = activeTab ? this.terminalManager.getSession(activeTab) : null;
     // Current Players logic
     let showCurrentPlayers = false;
@@ -490,130 +559,113 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
     const currentSidebarWidth = this.getSidebarWidth();
     const currentPlayersWidth = this.getCurrentPlayersWidth();
     return (
-      <div style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden'}}>
-        {/* Toolbar at the top */}
-        <div style={{display: 'flex', alignItems: 'center', background: '#222', color: '#fff', padding: '0.5em 1em', height: '3em'}}>
-          <span style={{fontWeight: 'bold', fontSize: '1.2em', flex: 1}}>RCON Manager</span>
-          <button style={{marginRight: '1em'}} onClick={this.handleOpenServerModal}>Manage Servers</button>
-        </div>
-        {/* Main content area: sidebar (tabs) + terminal area */}
-        <div style={{display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden'}}>          {/* Sidebar for tabs, resizable */}
+      <div style={{display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden'}}>
+        {/* Sidebar for tabs, resizable */}
+        <div
+          key={`sidebar-${this.state.activeTab}-${profileLayoutVersion}`}
+          style={{width: currentSidebarWidth, background: '#191c20', color: '#eee', borderRight: '1px solid #333', padding: '1em 0', position: 'relative', minWidth: 80, maxWidth: 400, flexShrink: 0, flexGrow: 0}}>
+          <div style={{padding: '0 1em', fontWeight: 'bold'}}>Servers</div>
+          <TabManager
+            serverProfiles={serverProfiles}
+            statusMap={this.state.statusMap}
+            onTabSelect={this.handleTabSelect}
+            activeTab={this.state.activeTab}
+          />
+          {/* Sidebar resize handle */}
           <div
-            key={`sidebar-${this.state.activeTab}-${profileLayoutVersion}`}
-            style={{width: currentSidebarWidth, background: '#191c20', color: '#eee', borderRight: '1px solid #333', padding: '1em 0', position: 'relative', minWidth: 80, maxWidth: 400, flexShrink: 0, flexGrow: 0}}>
-            <div style={{padding: '0 1em', fontWeight: 'bold'}}>Servers</div>
-            <TabManager
-              serverProfiles={serverProfiles}
-              statusMap={this.state.statusMap}
-              onTabSelect={this.handleTabSelect}
-              activeTab={this.state.activeTab}
-            />
-            {/* Sidebar resize handle */}
+            style={{position: 'absolute', top: 0, right: -3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 30, background: 'transparent'}}
+            onMouseDown={this.handleSidebarResizeStart}
+          />
+        </div>
+
+        {/* Main terminal area with terminal and status */}
+        <div style={{flex: 1, background: '#23272e', display: 'flex', flexDirection: 'row', minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden'}}>
+          {/* Current Players window (if enabled), resizable */}
+          {showCurrentPlayers && (
             <div
-              style={{position: 'absolute', top: 0, right: -3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 30, background: 'transparent'}}
-              onMouseDown={this.handleSidebarResizeStart}
-            />
-          </div>
-
-          {/* Main terminal area with terminal and status */}
-          <div style={{flex: 1, background: '#23272e', display: 'flex', flexDirection: 'row', minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden'}}>
-            {/* Current Players window (if enabled), resizable */}
-            {showCurrentPlayers && (
-              <div
-                key={`currentplayers-${this.state.activeTab}-${profileLayoutVersion}`}
-                style={{
-                  width: currentPlayersWidth,
-                  minWidth: 80,
-                  maxWidth: 400,
-                  position: 'relative',
-                  flexShrink: 0,
-                  flexGrow: 0,
-                  height: '100%'
-                }}
-              >
-                <CurrentPlayersWindow
-                  players={currentPlayersList}
-                  lastUpdate={currentPlayersLastUpdate}
-                  currentPlayersWidth={currentPlayersWidth}
-                />
-                {/* Current Players resize handle */}
-                <div
-                  style={{position: 'absolute', top: 0, right: -3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 30, background: 'transparent'}}
-                  onMouseDown={this.handleCurrentPlayersResizeStart}
-                />
-              </div>
-            )}
-            <div style={{flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, overflow: 'hidden'}}>
-              <TerminalArea
-                activeTab={this.state.activeTab}
-                status={this.state.activeTab ? this.state.statusMap[this.state.activeTab] : undefined}
-                session={session}
-                sessionVersion={sessionVersion}
+              key={`currentplayers-${this.state.activeTab}-${profileLayoutVersion}`}
+              style={{
+                width: currentPlayersWidth,
+                minWidth: 80,
+                maxWidth: 400,
+                position: 'relative',
+                flexShrink: 0,
+                flexGrow: 0,
+                height: '100%'
+              }}
+            >
+              <CurrentPlayersWindow
+                players={currentPlayersList}
+                lastUpdate={currentPlayersLastUpdate}
+                currentPlayersWidth={currentPlayersWidth}
               />
+              {/* Current Players resize handle */}
+              <div
+                style={{position: 'absolute', top: 0, right: -3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 30, background: 'transparent'}}
+                onMouseDown={this.handleCurrentPlayersResizeStart}
+              />
+            </div>
+          )}
+          <div style={{flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, overflow: 'hidden'}}>
+            <TerminalArea
+              activeTab={this.state.activeTab}
+              status={this.state.activeTab ? this.state.statusMap[this.state.activeTab] : undefined}
+              session={session}
+              sessionVersion={sessionVersion}
+            />
 
-              {/* Command input area */}
-              <div style={{display: 'flex', alignItems: 'center', background: '#20232a', borderTop: '1px solid #333', padding: '0.5em 1em', position: 'relative'}}>
-                <input
-                  ref={this.inputRef}
-                  type="text"
-                  value={command}
-                  onChange={this.handleInputChange}
-                  onKeyDown={this.handleInputKeyDown}
-                  placeholder="Type command..."
-                  style={{flex: 1, fontSize: '1em', padding: '0.5em', background: '#23272e', color: '#eee', border: '1px solid #444', borderRadius: 4}}
-                  autoComplete="off"
-                />
-                <button
-                  style={{marginLeft: '0.5em', padding: '0.5em 1em'}}
-                  onClick={this.handleSendCommand}
-                >Send</button>
-                <button
-                  style={{marginLeft: '0.5em', padding: '0.5em 0.7em'}}
-                  onClick={this.handleDropdownToggle}
-                  tabIndex={-1}
-                  aria-label="Show command history"
-                >&#x25BC;</button>
-                {/* Custom dropdown for command history */}
-                {showHistoryDropdown && commandHistory.length > 0 && (
-                  <div
-                    ref={this.dropdownRef}
-                    style={{
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: '#23272e',
-                      border: '1px solid #444',
-                      zIndex: 10,
-                      maxHeight: '200px',
-                      overflowY: 'auto',
-                    }}
-                  >
-                    {commandHistory.slice().reverse().map((cmd, idx) => (
-                      <div
-                        key={idx}
-                        style={{padding: '0.5em 1em', cursor: 'pointer', color: '#eee'}}
-                        onClick={() => this.handleHistoryClick(cmd)}
-                        onMouseDown={e => e.preventDefault()}
-                      >
-                        {cmd}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {/* Command input area */}
+            <div style={{display: 'flex', alignItems: 'center', background: '#20232a', borderTop: '1px solid #333', padding: '0.5em 1em', position: 'relative'}}>
+              <input
+                ref={this.inputRef}
+                type="text"
+                value={command}
+                onChange={this.handleInputChange}
+                onKeyDown={this.handleInputKeyDown}
+                placeholder="Type command..."
+                style={{flex: 1, fontSize: '1em', padding: '0.5em', background: '#23272e', color: '#eee', border: '1px solid #444', borderRadius: 4}}
+                autoComplete="off"
+              />
+              <button
+                style={{marginLeft: '0.5em', padding: '0.5em 1em'}}
+                onClick={this.handleSendCommand}
+              >Send</button>
+              <button
+                style={{marginLeft: '0.5em', padding: '0.5em 0.7em'}}
+                onClick={this.handleDropdownToggle}
+                tabIndex={-1}
+                aria-label="Show command history"
+              >&#x25BC;</button>
+              {/* Custom dropdown for command history */}
+              {showHistoryDropdown && commandHistory.length > 0 && (
+                <div
+                  ref={this.dropdownRef}
+                  style={{
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: '#23272e',
+                    border: '1px solid #444',
+                    zIndex: 10,
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                  }}
+                >
+                  {commandHistory.slice().reverse().map((cmd, idx) => (
+                    <div
+                      key={idx}
+                      style={{padding: '0.5em 1em', cursor: 'pointer', color: '#eee'}}
+                      onClick={() => this.handleHistoryClick(cmd)}
+                      onMouseDown={e => e.preventDefault()}
+                    >
+                      {cmd}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
-
-        {/* Disconnected Modal */}
-        <DisconnectedModal show={!!this.state.disconnected} onRetry={this.handleRetryConnection} />
-        {/* Server Management Modal */}
-        <ServerManagementModal
-          show={showServerModal}
-          onClose={this.handleCloseServerModal}
-          serverProfiles={serverProfiles}
-          onSave={this.handleSaveServerProfiles}
-        />
       </div>
     );
   }

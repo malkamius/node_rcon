@@ -7,6 +7,8 @@ import path from 'path';
 import fs from 'fs';
 import { getProfiles, saveProfiles } from './profiles';
 import { RconManager } from './rconManager';
+import iniApi from './iniApi';
+import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
 
 const configPath = path.join(__dirname, '../../config.json');
 const defaultConfig = {
@@ -30,6 +32,10 @@ const rconManager = new RconManager();
 
 // Serve static files
 app.use(express.static(path.join(__dirname, '../../public')));
+// Serve ARK settings template JSON
+serveArkSettingsTemplate(app);
+// INI API
+app.use(iniApi);
 
 // API: Get layout for a server profile
 app.get('/api/layout/:key', (req, res) => {

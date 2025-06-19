@@ -1,5 +1,33 @@
 # RCON Manager Development History
 
+## 2025-06-19
+### Server Configuration & INI Management
+- Added a Server Configuration tab to the frontend with a server list, selection, and INI editor UI for ARK Game.ini and GameUserSettings.ini files.
+- Implemented backend Express endpoints to fetch and save INI files as JSON, using the `ini` npm package for parsing and writing.
+- Backend now saves INI files in the correct ARK config subdirectory (`ShooterGame/Saved/Config/WindowsServer/`).
+- Before overwriting an INI file, the backend creates a timestamped `.backup.ini` file in the same directory.
+- INI editor UI supports checkboxes for booleans and number fields that can be cleared to omit settings from the INI.
+- Frontend omits empty number fields when saving settings.
+- TypeScript errors in backend and frontend were resolved.
+- requirements.server-config-ini.md documents requirements and implementation plan for these features.
+
+- ark-settings-template.json updated with settings from the wiki
+- max height of settings editor dynamic now
+feat: Implement server configuration and INI management features
+
+- Added a new Server Configuration tab in the frontend for managing server settings.
+- Implemented backend API for reading and writing INI files using Node.js and ini library.
+- Created a JSON template system for ARK settings to facilitate dynamic form rendering.
+- Developed a utility to load ARK settings template from the server.
+- Enhanced server management modal to include dedicated server directory path.
+- Added functionality for deep merging INI settings to preserve existing values.
+- Implemented a verification script to ensure template integrity against actual INI files.
+
+#### Next Steps
+- Add error handling and user feedback for failed backend operations in the frontend.
+- Optionally, allow users to view/download or restore from INI backups.
+- Improve UI/UX: section navigation, search/filter, validation.
+
 ## 2025-06-18
 ### Disconnected/Reconnect Handling
 - Frontend: Added a modal dialog that appears when the frontend loses connection to the backend, with automatic reconnection attempts every 5 seconds and a manual retry button.

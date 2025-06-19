@@ -12,6 +12,7 @@ interface ServerProfile {
       updateInterval: number;
     }
   };
+  directory?: string;
 }
 
 interface ServerManagementModalProps {
@@ -33,7 +34,7 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
     this.state = {
       profiles: props.serverProfiles,
       editingIndex: null,
-      editProfile: { name: '', host: '', port: 25575, password: '', game: '', features: { currentPlayers: { enabled: false, updateInterval: 10 } } },
+      editProfile: { name: '', host: '', port: 25575, password: '', game: '', features: { currentPlayers: { enabled: false, updateInterval: 10 } }, directory: '' },
     };
   }
 
@@ -56,7 +57,7 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
   handleAdd = () => {
     this.setState({
       editingIndex: -1,
-      editProfile: { name: '', host: '', port: 25575, password: '', game: '', features: { currentPlayers: { enabled: false, updateInterval: 10 } } },
+      editProfile: { name: '', host: '', port: 25575, password: '', game: '', features: { currentPlayers: { enabled: false, updateInterval: 10 } }, directory: '' },
     });
   };
 
@@ -134,39 +135,65 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
           {editingIndex !== null && (
             <div style={{marginBottom: 16}}>
               <h4>{editingIndex === -1 ? 'Add Server' : 'Edit Server'}</h4>
-              <input name="name" placeholder="Name" value={editProfile.name} onChange={this.handleChange} style={{marginRight: 8}} />
-              <input name="host" placeholder="Host/IP" value={editProfile.host} onChange={this.handleChange} style={{marginRight: 8}} />
-              <input name="port" type="number" placeholder="Port" value={editProfile.port} onChange={this.handleChange} style={{marginRight: 8, width: 70}} />
-              <input name="password" placeholder="Password" value={editProfile.password} onChange={this.handleChange} style={{marginRight: 8}} />
-              <select name="game" value={editProfile.game || ''} onChange={this.handleChange} style={{marginRight: 8}}>
-                <option value="">Select Game</option>
-                <option value="ark_se">ARK: Survival Evolved</option>
-                <option value="ark_sa">ARK: Survival Ascended</option>
-                {/* Add more games as needed */}
-              </select>
-              <label style={{marginRight: 8}}>
-                <input
-                  type="checkbox"
-                  name="features.currentPlayers.enabled"
-                  checked={!!(editProfile.features && editProfile.features.currentPlayers && editProfile.features.currentPlayers.enabled)}
-                  onChange={this.handleChange}
-                  style={{marginRight: 4}}
-                />
-                Current Players
-              </label>
-              {editProfile.features && editProfile.features.currentPlayers && editProfile.features.currentPlayers.enabled && (
-                <input
-                  type="number"
-                  name="features.currentPlayers.updateInterval"
-                  value={editProfile.features.currentPlayers.updateInterval}
-                  min={1}
-                  onChange={this.handleChange}
-                  style={{marginRight: 8, width: 90}}
-                  placeholder="Update Interval (s)"
-                />
-              )}
-              <button onClick={this.handleSave}>Save</button>
-              <button onClick={() => this.setState({ editingIndex: null })} style={{marginLeft: 4}}>Cancel</button>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 16px', marginBottom: 8 }}>
+                <div style={{ flex: '1 1 180px', minWidth: 160 }}>
+                  <label style={{ display: 'block', marginBottom: 2 }}>Name</label>
+                  <input name="name" placeholder="Name" value={editProfile.name} onChange={this.handleChange} style={{ width: '100%' }} />
+                </div>
+                <div style={{ flex: '1 1 180px', minWidth: 160 }}>
+                  <label style={{ display: 'block', marginBottom: 2 }}>Host/IP</label>
+                  <input name="host" placeholder="Host/IP" value={editProfile.host} onChange={this.handleChange} style={{ width: '100%' }} />
+                </div>
+                <div style={{ flex: '1 1 100px', minWidth: 80 }}>
+                  <label style={{ display: 'block', marginBottom: 2 }}>Port</label>
+                  <input name="port" type="number" placeholder="Port" value={editProfile.port} onChange={this.handleChange} style={{ width: '100%' }} />
+                </div>
+                <div style={{ flex: '1 1 180px', minWidth: 160 }}>
+                  <label style={{ display: 'block', marginBottom: 2 }}>Password</label>
+                  <input name="password" placeholder="Password" value={editProfile.password} onChange={this.handleChange} style={{ width: '100%' }} />
+                </div>
+                <div style={{ flex: '1 1 220px', minWidth: 180 }}>
+                  <label style={{ display: 'block', marginBottom: 2 }}>Directory</label>
+                  <input name="directory" placeholder="Directory (optional)" value={editProfile.directory || ''} onChange={this.handleChange} style={{ width: '100%' }} />
+                </div>
+                <div style={{ flex: '1 1 180px', minWidth: 160 }}>
+                  <label style={{ display: 'block', marginBottom: 2 }}>Game</label>
+                  <select name="game" value={editProfile.game || ''} onChange={this.handleChange} style={{ width: '100%' }}>
+                    <option value="">Select Game</option>
+                    <option value="ark_se">ARK: Survival Evolved</option>
+                    <option value="ark_sa">ARK: Survival Ascended</option>
+                    {/* Add more games as needed */}
+                  </select>
+                </div>
+                <div style={{ flex: '1 1 180px', minWidth: 160, display: 'flex', alignItems: 'center', marginTop: 22 }}>
+                  <input
+                    type="checkbox"
+                    name="features.currentPlayers.enabled"
+                    checked={!!(editProfile.features && editProfile.features.currentPlayers && editProfile.features.currentPlayers.enabled)}
+                    onChange={this.handleChange}
+                    style={{ marginRight: 4 }}
+                  />
+                  <span>Current Players</span>
+                </div>
+                {editProfile.features && editProfile.features.currentPlayers && editProfile.features.currentPlayers.enabled && (
+                  <div style={{ flex: '1 1 140px', minWidth: 120 }}>
+                    <label style={{ display: 'block', marginBottom: 2 }}>Update Interval (s)</label>
+                    <input
+                      type="number"
+                      name="features.currentPlayers.updateInterval"
+                      value={editProfile.features.currentPlayers.updateInterval}
+                      min={1}
+                      onChange={this.handleChange}
+                      style={{ width: '100%' }}
+                      placeholder="Update Interval (s)"
+                    />
+                  </div>
+                )}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <button onClick={this.handleSave}>Save</button>
+                <button onClick={() => this.setState({ editingIndex: null })} style={{ marginLeft: 4 }}>Cancel</button>
+              </div>
             </div>
           )}
           <div style={{display: 'flex', justifyContent: 'space-between'}}>
