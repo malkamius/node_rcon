@@ -20,36 +20,17 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
   const [saving, setSaving] = useState(false);
   const [settingsTemplate, setSettingsTemplate] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const selectedProfile = selectedIdx !== null ? serverProfiles[selectedIdx] : null;
-
-  // Ref and state for dynamic maxHeight
-  const editorAreaRef = useRef<HTMLDivElement>(null);
-  const [editorMaxHeight, setEditorMaxHeight] = useState<string>('');
-
-  useEffect(() => {
-    function updateMaxHeight() {
-      requestAnimationFrame(() => {
-        if (editorAreaRef.current) {
-          const rect = editorAreaRef.current.getBoundingClientRect();
-          const offsetTop = rect.top + window.scrollY;
-          const maxHeight = window.innerHeight - (rect.top) - 100;
-          setEditorMaxHeight(maxHeight > 40 ? `${maxHeight}px` : '40px');
-        }
-      });
-    }
-    updateMaxHeight();
-    window.addEventListener('resize', updateMaxHeight);
-    window.addEventListener('scroll', updateMaxHeight, true);
-    return () => {
-      window.removeEventListener('resize', updateMaxHeight);
-      window.removeEventListener('scroll', updateMaxHeight, true);
-    };
-  }, [editingFile, selectedIdx]);
+  const [profiles, setProfiles] = useState(serverProfiles);
+  const selectedProfile = selectedIdx !== null ? profiles[selectedIdx] : null;
 
   // Load settings template on mount
   useEffect(() => {
     loadArkSettingsTemplate().then(setSettingsTemplate).catch(() => setSettingsTemplate(null));
   }, []);
+  // Reload profiles when serverProfiles prop changes (after save)
+  useEffect(() => {
+    setProfiles(serverProfiles);
+  }, [serverProfiles]);
 
   // Fetch INI data from backend
   const fetchIni = async (file: 'Game.ini' | 'GameUserSettings.ini') => {
@@ -88,51 +69,19 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
           // Use value from iniObj if present, otherwise use default from template
           if (setting.type === 'bool') {
             let boolVal;
-            if (val !== undefined) {
-              if (typeof val === 'boolean') {
-                boolVal = val;
-              } else if (typeof val === 'string') {
-                boolVal = val.toLowerCase() === 'true' || val === '1';
-              } else {
-                boolVal = Boolean(val);
-              }
-            } else {
-              boolVal = !!setting.default;
-            }
+            if (val !== undefined) { boolVal = (val === 'True' || val === true); } else { boolVal = !!setting.default; }
             newFormState[sectionName][key] = { value: boolVal };
           } else if (setting.type === 'int' || setting.type === 'float') {
             let numVal;
-            if (val !== undefined && val !== '') {
-              numVal = Number(val);
-            } else if (setting.default !== undefined) {
-              numVal = Number(setting.default);
-            } else {
-              numVal = 0;
-            }
+            if (val !== undefined && val !== '') { numVal = Number(val); } else if (setting.default !== undefined) { numVal = Number(setting.default); } else { numVal = ''; }
             newFormState[sectionName][key] = { value: numVal };
           } else if (setting.type === 'array') {
             let arrVal;
-            if (Array.isArray(val)) {
-              arrVal = val;
-            } else if (val) {
-              arrVal = [val];
-            } else if (Array.isArray(setting.default)) {
-              arrVal = setting.default;
-            } else if (setting.default) {
-              arrVal = [setting.default];
-            } else {
-              arrVal = [];
-            }
+            if (Array.isArray(val)) { arrVal = val; } else if (val) { arrVal = [String(val)]; } else if (Array.isArray(setting.default)) { arrVal = setting.default; } else if (setting.default) { arrVal = [String(setting.default)]; } else { arrVal = []; }
             newFormState[sectionName][key] = { value: arrVal };
           } else {
             let strVal;
-            if (val !== undefined && val !== null) {
-              strVal = val;
-            } else if (setting.default !== undefined) {
-              strVal = setting.default;
-            } else {
-              strVal = '';
-            }
+            if (val !== undefined && val !== null) { strVal = String(val); } else if (setting.default !== undefined) { strVal = String(setting.default); } else { strVal = ''; }
             newFormState[sectionName][key] = { value: strVal };
           }
         }
@@ -142,14 +91,6 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
       setIniData({});
       setFormState({});
     }
-    // Calculate maxHeight for editor area
-    requestAnimationFrame(() => {
-      if (editorAreaRef.current) {
-        const rect = editorAreaRef.current.getBoundingClientRect();
-        const maxHeight = window.innerHeight - rect.top - 100;
-        setEditorMaxHeight(maxHeight > 40 ? `${maxHeight}px` : '40px');
-      }
-    });
     setLoading(false);
   };
 
@@ -260,7 +201,7 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
   };
 
   return (
-    <div style={{ padding: '2em', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
       <h2>Server Configuration</h2>
       {error && (
         <div style={{ background: '#ffdddd', color: '#a00', padding: '8px 16px', textAlign: 'center', fontWeight: 600, border: '1px solid #a00', borderRadius: 4, marginBottom: 16 }}>
@@ -268,12 +209,12 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
           <button onClick={() => setError(null)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#a00', fontWeight: 700, cursor: 'pointer' }}>×</button>
         </div>
       )}
-      <div style={{ display: 'flex', gap: 32 }}>
+      <div style={{ display: 'flex', gap: 32, flex: 1, minHeight: 0 }}>
         {/* Server List */}
         <div style={{ minWidth: 260 }}>
           <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Servers</div>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {serverProfiles.map((profile, idx) => (
+            {profiles.map((profile, idx) => (
               <li
                 key={idx}
                 style={{
@@ -287,7 +228,7 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
                 }}
                 onClick={() => setSelectedIdx(idx)}
               >
-                <div style={{ fontWeight: 'bold' }}>{profile.name || `${profile.host}:${profile.port}`}</div>
+                <div style={{ fontWeight: 'bold' }}>{profile.name || profile.directory || `${profile.host}:${profile.port}`}</div>
               </li>
             ))}
           </ul>
@@ -295,7 +236,7 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
         </div>
 
         {/* INI Editor Area */}
-        <div style={{ flex: 1, minWidth: 300 }}>
+        <div style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column' }}>
           <div style={{ marginBottom: 16 }}>
             <button
               disabled={!selectedProfile}
@@ -306,32 +247,32 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
               disabled={!selectedProfile}
               onClick={() => handleEditFile('GameUserSettings.ini')}
             >Edit GameUserSettings.ini</button>
+            
           </div>
           <div
-            style={{ background: '#191c20', padding: 16, borderRadius: 6, color: '#eee', border: '1px solid #444' }}
+            style={{ background: '#191c20', padding: 16, borderRadius: 6, color: '#eee', border: '1px solid #444', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
           >
             {editingFile && selectedProfile ? (
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Editing {editingFile} for {selectedProfile.name}</div>
+              <div style={{flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0}}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h3 style={{ margin: 0 }}>Editing {editingFile} for {selectedProfile.name}</h3>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                    <button onClick={handleCancel} disabled={saving}>Cancel</button>
+                  </div>
+                </div>
                 {loading ? (
-                  <div style={{ color: '#aaa' }}>Loading...</div>
+                  <div style={{ color: '#aaa', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>
                 ) : (
-                  <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
-                    <div style={{ margin: 16 }}>
-                      <button type="submit" disabled={saving} style={{ marginRight: 8 }}>{saving ? 'Saving...' : 'Save'}</button>
-                      <button type="button" onClick={handleCancel} disabled={saving}>Cancel</button>
-                    </div>
+                  <div style={{overflowY: 'auto', display:'flex', flexDirection: 'column', color: '#eee',
+                        border: '1px solid #444', background: '#23272e', borderRadius: 6}}>
+                  <form onSubmit={e => { e.preventDefault(); handleSave(); }} style={{flex: 1, display: 'flex', flexDirection: 'column'}}>
                     <div
-                        ref={editorAreaRef}
                         style={{
                         minHeight: 200,
-                        background: '#23272e',
-                        borderRadius: 6,
                         padding: 24,
-                        color: '#eee',
-                        border: '1px solid #444',
-                        maxHeight: editorMaxHeight || undefined,
-                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
                         }}
                     >
                     {settingsTemplate && editingFile ? (
@@ -350,12 +291,12 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
                           }
                         });
                         return (
-                          <div key={sectionName} style={{ marginBottom: 24 }}>
-                            <div style={{ fontWeight: 'bold', marginBottom: 8 }}>{sectionName}</div>
+                          <div key={sectionName} style={{ display: 'flex', flexDirection: 'column', marginBottom: 24 }}>
+                            <div style={{ display:'flex', fontWeight: 'bold', marginBottom: 8 }}>{sectionName}</div>
                             {/* Render grouped settings as sub-frames */}
                             {Object.entries(grouped).map(([base, items]) => (
-                              <div key={base} style={{ border: '1px solid #333', borderRadius: 4, marginBottom: 12, padding: 12, background: '#222' }}>
-                                <div style={{ fontWeight: 'bold', marginBottom: 8 }}>{base}</div>
+                              <div key={base} style={{ display: 'flex', flexDirection: 'column', border: '1px solid #333', borderRadius: 4, marginBottom: 12, padding: 12, background: '#222' }}>
+                                <div style={{ display:'flex', fontWeight: 'bold', marginBottom: 8 }}>{base}</div>
                                 {items.map(([key, setting]) => {
                                   const s = formState[sectionName]?.[key] || { value: setting.type === 'bool' ? false : '' };
                                   // Render input based on type (same as before)
@@ -525,26 +466,26 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
                       })
                     ) : null}
                     </div>
-                    
                   </form>
+                  </div>
                 )}
               </div>
             ) : selectedProfile ? (
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Editing: {selectedProfile.name}</div>
-                <div style={{ color: '#aaa', fontSize: '0.95em', marginBottom: 8 }}>
+              <div style={{flex: 1}}>
+                <div style={{ display:'flex', fontWeight: 'bold', marginBottom: 8 }}>Editing: {selectedProfile.name}</div>
+                <div style={{ display:'flex',color: '#aaa', fontSize: '0.95em', marginBottom: 8 }}>
                   Directory: {selectedProfile.directory || <span style={{ color: '#f66' }}>Not set</span>}
                 </div>
-                <div style={{ color: '#aaa', fontSize: '0.95em' }}>
+                <div style={{ display:'flex',color: '#aaa', fontSize: '0.95em' }}>
                   Host: {selectedProfile.host || <span style={{ color: '#888' }}>N/A</span>}<br />
                   Port: {selectedProfile.port || <span style={{ color: '#888' }}>N/A</span>}
                 </div>
-                <div style={{ marginTop: 24, color: '#888' }}>
+                <div style={{ display:'flex',marginTop: 24, color: '#888' }}>
                   (Select a file to edit its settings.)
                 </div>
               </div>
             ) : (
-              <div style={{ color: '#888' }}>Select a server to begin editing its configuration.</div>
+              <div style={{ color: '#888', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Select a server to begin editing its configuration.</div>
             )}
           </div>
         </div>

@@ -22,7 +22,13 @@ function getIniPath(server: any, file: string): string {
 // GET INI file as JSON
 router.get('/api/server-ini/:profileIdx/:file', (req, res) => {
   const { profileIdx, file } = req.params;
-  const profiles = require('../../config.json').servers;
+  let profiles;
+  try {
+    const configRaw = fs.readFileSync(path.join(__dirname, '../../config.json'), 'utf-8');
+    profiles = JSON.parse(configRaw).servers;
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to read config.json' });
+  }
   const idx = parseInt(profileIdx, 10);
   if (isNaN(idx) || !profiles[idx]) return res.status(404).json({ error: 'Profile not found' });
   try {
@@ -39,7 +45,13 @@ router.get('/api/server-ini/:profileIdx/:file', (req, res) => {
 // POST (save) INI file from JSON
 router.post('/api/server-ini/:profileIdx/:file', express.json(), (req, res) => {
     const { profileIdx, file } = req.params;
-    const profiles = require('../../config.json').servers;
+    let profiles;
+    try {
+      const configRaw = fs.readFileSync(path.join(__dirname, '../../config.json'), 'utf-8');
+      profiles = JSON.parse(configRaw).servers;
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to read config.json' });
+    }
     const idx = parseInt(profileIdx, 10);
     if (isNaN(idx) || !profiles[idx]) return res.status(404).json({ error: 'Profile not found' });
     try {

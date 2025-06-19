@@ -525,7 +525,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
           <button style={{marginRight: '1em'}} onClick={this.handleOpenServerModal}>Manage Servers</button>
         </div>
         {/* Main content area */}
-        <div style={{flex: 1, minHeight: 0, overflow: 'hidden'}}>
+        <div style={{flex: 1, minHeight: 0, overflow: 'hidden', paddingBottom: '1em'}}>
           {activity === 'rcon' ? (
             // ...existing code for RCon tab...
             this.renderRconTab()
@@ -630,7 +630,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
             />
 
             {/* Command input area */}
-            <div style={{display: 'flex', alignItems: 'center', background: '#20232a', borderTop: '1px solid #333', padding: '0.5em 1em', position: 'relative'}}>
+            <div style={{display: 'flex', alignItems: 'center', background: '#20232a', border: '1px solid #333', padding: '0.5em 1em', position: 'relative'}}>
               <input
                 ref={this.inputRef}
                 type="text"

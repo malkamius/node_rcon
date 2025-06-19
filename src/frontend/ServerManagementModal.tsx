@@ -97,10 +97,15 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
 
   handleSave = () => {
     const { editingIndex, editProfile, profiles } = this.state;
-    // Basic validation
-    if (!editProfile.name || !editProfile.host || !editProfile.port || !editProfile.password) {
+    // Validation: require name, and either directory OR (host and port)
+    if (!editProfile.name) {
       if (this.props.clearError) this.props.clearError();
-      this.setState({ error: 'Name, Host, Port, and Password are required.' });
+      this.setState({ error: 'Name is required.' });
+      return;
+    }
+    if (!editProfile.directory && (!editProfile.host || !editProfile.port)) {
+      if (this.props.clearError) this.props.clearError();
+      this.setState({ error: 'Either Directory or both Host and Port are required.' });
       return;
     }
     let newProfiles = profiles.slice();
@@ -109,9 +114,24 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
     } else if (editingIndex !== null) {
       newProfiles[editingIndex] = editProfile;
     }
-    this.setState({ profiles: newProfiles, editingIndex: null, error: null });
-    if (this.props.clearError) this.props.clearError();
-    this.props.onSave(newProfiles);
+    // Save to backend, then fetch latest profiles and call onSave
+    const doSave = async () => {
+      try {
+        if (this.props.clearError) this.props.clearError();
+        await fetch('/api/profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newProfiles),
+        });
+        const res = await fetch('/api/profiles');
+        const latestProfiles = await res.json();
+        this.setState({ profiles: latestProfiles, editingIndex: null, error: null });
+        this.props.onSave(latestProfiles);
+      } catch (e) {
+        this.setState({ error: 'Failed to save profiles.' });
+      }
+    };
+    doSave();
   };
 
   render() {
