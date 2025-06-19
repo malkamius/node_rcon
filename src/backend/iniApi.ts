@@ -74,6 +74,7 @@ router.post('/api/server-ini/:profileIdx/:file', express.json(), (req, res) => {
 
         // write updated INI to a new file with timestamp in case the server is running and overwrites the updated file
         fs.writeFileSync(path.join(dir, updated_settings_name), iniStr, 'utf-8');
+        console.log(`INI file saved: ${iniPath}`);
         res.json({ ok: true });
     } catch (e : any) {
         res.status(500).json({ error: e.message });

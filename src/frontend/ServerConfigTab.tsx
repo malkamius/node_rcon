@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { loadArkSettingsTemplate } from './arkSettingsTemplateLoader';
 
@@ -20,6 +19,7 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [settingsTemplate, setSettingsTemplate] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const selectedProfile = selectedIdx !== null ? serverProfiles[selectedIdx] : null;
 
   // Ref and state for dynamic maxHeight
@@ -177,6 +177,7 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
   const handleSave = async () => {
     if (selectedIdx === null || !editingFile || !settingsTemplate) return;
     setSaving(true);
+    setError(null);
     // Build iniObj from formState, supporting nested/period-separated section names
     const iniObj: any = {};
     const templateSections = settingsTemplate[editingFile]?.sections || {};
@@ -202,30 +203,54 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
       for (const key in section.settings) {
         const setting = section.settings[key];
         const s = formState[sectionName]?.[key];
+        // Only add if value differs from default
+        let isDefault = false;
         if (setting.type === 'bool') {
-          setNestedSection(iniObj, sectionParts.join('.'), key, !!s.value);
+          const val = !!s.value;
+          const def = !!setting.default;
+          isDefault = val === def;
+          if (!isDefault) setNestedSection(iniObj, sectionParts.join('.'), key, val? "True" : "False");
         } else if (setting.type === 'int' || setting.type === 'float') {
           if (s.value !== '' && !isNaN(Number(s.value))) {
-            setNestedSection(iniObj, sectionParts.join('.'), key, Number(s.value));
+            const val = Number(s.value);
+            const def = setting.default !== undefined ? Number(setting.default) : 0;
+            isDefault = val === def;
+            if (!isDefault) setNestedSection(iniObj, sectionParts.join('.'), key, val);
           }
         } else if (setting.type === 'array') {
-          if (Array.isArray(s.value) && s.value.length > 0) {
-            setNestedSection(iniObj, sectionParts.join('.'), key, s.value);
-          }
+          const val = Array.isArray(s.value) ? s.value : [];
+          let def = [];
+          if (Array.isArray(setting.default)) def = setting.default;
+          else if (setting.default) def = [setting.default];
+          isDefault = JSON.stringify(val) === JSON.stringify(def);
+          if (!isDefault && val.length > 0) setNestedSection(iniObj, sectionParts.join('.'), key, val);
         } else {
-          if (s.value) setNestedSection(iniObj, sectionParts.join('.'), key, s.value);
+          const val = s.value;
+          const def = setting.default !== undefined ? setting.default : '';
+          isDefault = val === def;
+          if (!isDefault && val) setNestedSection(iniObj, sectionParts.join('.'), key, val);
         }
       }
     }
     try {
-      await fetch(`/api/server-ini/${selectedIdx}/${editingFile}`, {
+      const res = await fetch(`/api/server-ini/${selectedIdx}/${editingFile}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(iniObj),
       });
+      if (!res.ok) {
+        let msg = 'Failed to save INI file';
+        try {
+          const data = await res.json();
+          if (data && data.error) msg = data.error;
+        } catch {}
+        setError(msg);
+        setSaving(false);
+        return;
+      }
       setEditingFile(null);
-    } catch (e) {
-      alert('Failed to save INI file');
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save INI file');
     }
     setSaving(false);
   };
@@ -237,6 +262,12 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
   return (
     <div style={{ padding: '2em', maxWidth: 900, margin: '0 auto' }}>
       <h2>Server Configuration</h2>
+      {error && (
+        <div style={{ background: '#ffdddd', color: '#a00', padding: '8px 16px', textAlign: 'center', fontWeight: 600, border: '1px solid #a00', borderRadius: 4, marginBottom: 16 }}>
+          {error}
+          <button onClick={() => setError(null)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#a00', fontWeight: 700, cursor: 'pointer' }}>×</button>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 32 }}>
         {/* Server List */}
         <div style={{ minWidth: 260 }}>
@@ -420,13 +451,13 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
                                       onChange={e => handleFormChange(sectionName, key, 'value', e.target.checked)}
                                       style={{ marginRight: 8 }}
                                     />
-                                    <label style={{ flex: 1 }}>{setting.label || key}</label>
+                                    <label style={{ flex: 1 }} title={setting.description || ''}>{setting.label || key}</label>
                                   </div>
                                 );
                               } else if (setting.type === 'int' || setting.type === 'float') {
                                 return (
                                   <div key={key} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                                    <label style={{ flex: 1, marginRight: 8 }}>{setting.label || key}</label>
+                                    <label style={{ flex: 1, marginRight: 8 }} title={setting.description || ''}>{setting.label || key}</label>
                                     <input
                                       type="number"
                                       value={s.value === '' ? '' : s.value}
@@ -449,7 +480,7 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
                               } else if (setting.type === 'enum') {
                                 return (
                                   <div key={key} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                                    <label style={{ flex: 1, marginRight: 8 }}>{setting.label || key}</label>
+                                    <label style={{ flex: 1, marginRight: 8 }} title={setting.description || ''}>{setting.label || key}</label>
                                     <select
                                       value={s.value}
                                       onChange={e => handleFormChange(sectionName, key, 'value', e.target.value)}
@@ -464,7 +495,7 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
                               } else if (setting.type === 'array') {
                                 return (
                                   <div key={key} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                                    <label style={{ flex: 1, marginRight: 8 }}>{setting.label || key}</label>
+                                    <label style={{ flex: 1, marginRight: 8 }} title={setting.description || ''}>{setting.label || key}</label>
                                     <input
                                       type="text"
                                       value={Array.isArray(s.value) ? s.value.join(',') : ''}
@@ -477,7 +508,7 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
                               } else if (setting.type === 'string') {
                                 return (
                                   <div key={key} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                                    <label style={{ flex: 1, marginRight: 8 }}>{setting.label || key}</label>
+                                    <label style={{ flex: 1, marginRight: 8 }} title={setting.description || ''}>{setting.label || key}</label>
                                     <input
                                       type={setting.multiline ? 'textarea' : 'text'}
                                       value={s.value}

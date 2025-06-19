@@ -1289,31 +1289,45 @@
                         "default": "",
                         "description": "If specified, players must provide this password (via the in-game console) to gain access to administrator commands on the server. Note: no quotes are used."
                     },
-                    "MaxPlayers": {
+                    "SessionName": {
+                        "type": "string",
+                        "label": "Session Name",
+                        "default": "My ARK Server",
+                        "description": "Specifies the Server name advertised in the Game Server Browser as well in Steam Server browser. If no name is provide, the default name will be ARK # followed by a random 6 digit number. Note: Name must not be typed between quotes unless it is launched from command line."
+                    },
+                    "ActiveMods": {
+                        "type": "string",
+                        "label": "ActiveMods",
+                        "default": "",
+                        "description": "Value type: list of mod IDs, comma-separated with no spaces, in a single line (for example: ModID1,ModID2,ModID3)Specifies the order and which mods are loaded. ModIDs are comma separated and in one line. Priority is in descending order (the left-most ModID hast the highest priority). Alternatively, but not suggested, the command line ?GameModIds= can be used."
+                    },
+                    "ActiveMapMod": {
+                        "type": "string",
+                        "label": "ActiveMapMod",
+                        "default": "",
+                        "description": "Value type: mod ID for currently active mod mapSpecifies which mod map is loaded."
+                    },
+                    "ActiveTotalConversion": {
+                        "type": "string",
+                        "label": "ActiveTotalConversion",
+                        "default": "",
+                        "description": "Value type: ModIDUsed to specify a total conversion mod (e.g.: Primitive Plus). Alternatively, the command line option -TotalConversionMod=<ModID> can also be set."
+                    },
+                    "Port": {
                         "type": "int",
-                        "label": "Max Players",
-                        "min": 1,
-                        "max": 100,
-                        "default": 10,
-                        "description": "Specifies the maximum number of players that can play on the server simultaneously. ASA: This setting is replaced with -WinLiveMaxPlayers in the command line options, as otherwise, it will force it back to the default value."
+                        "label": "Game Port",
+                        "min": 1025,
+                        "max": 65535,
+                        "default": 7777,
+                        "description": "Specifies the UDP Game Port. Peer port is this + 1. See Dedicated server setup"
                     },
-                    "AllowThirdPersonPlayer": {
-                        "type": "bool",
-                        "label": "Allow Third Person",
-                        "default": true,
-                        "description": "If False, disables third person camera allowed by default on all dedicated servers."
-                    },
-                    "ServerCrosshair": {
-                        "type": "bool",
-                        "label": "Enable Crosshair",
-                        "default": true,
-                        "description": "If False, disables the Crosshair on your server."
-                    },
-                    "ServerForceNoHUD": {
-                        "type": "bool",
-                        "label": "Force No HUD",
-                        "default": false,
-                        "description": "If True, HUD is always disabled for non-tribe owned NPCs."
+                    "QueryPort": {
+                        "type": "int",
+                        "label": "Steam Query Port",
+                        "min": 1025,
+                        "max": 65535,
+                        "default": 27015,
+                        "description": "Specifies the UDP Steam Query Port. See Dedicated server setup"
                     },
                     "ServerPassword": {
                         "type": "string",
@@ -1347,35 +1361,30 @@
                         "default": 27020,
                         "description": "Specifies the optional TCP RCON Port. See Dedicated server setup"
                     },
+                    "AllowThirdPersonPlayer": {
+                        "type": "bool",
+                        "label": "Allow Third Person",
+                        "default": true,
+                        "description": "If False, disables third person camera allowed by default on all dedicated servers."
+                    },
+                    "ServerCrosshair": {
+                        "type": "bool",
+                        "label": "Enable Crosshair",
+                        "default": true,
+                        "description": "If False, disables the Crosshair on your server."
+                    },
+                    "ServerForceNoHUD": {
+                        "type": "bool",
+                        "label": "Force No HUD",
+                        "default": false,
+                        "description": "If True, HUD is always disabled for non-tribe owned NPCs."
+                    },
+                    
                     "bAllowFlyerCarryPvE": {
                         "type": "bool",
                         "label": "Allow Flyer Carry (PvE)",
                         "default": false,
                         "description": "If True, allows flying creatures to pick up wild creatures in PvE."
-                    },
-                    "SessionName": {
-                        "type": "string",
-                        "label": "Session Name",
-                        "default": "My ARK Server",
-                        "description": "Specifies the Server name advertised in the Game Server Browser as well in Steam Server browser. If no name is provide, the default name will be ARK # followed by a random 6 digit number. Note: Name must not be typed between quotes unless it is launched from command line."
-                    },
-                    "ActiveMods": {
-                        "type": "string",
-                        "label": "ActiveMods",
-                        "default": "",
-                        "description": "Value type: list of mod IDs, comma-separated with no spaces, in a single line (for example: ModID1,ModID2,ModID3)Specifies the order and which mods are loaded. ModIDs are comma separated and in one line. Priority is in descending order (the left-most ModID hast the highest priority). Alternatively, but not suggested, the command line ?GameModIds= can be used."
-                    },
-                    "ActiveMapMod": {
-                        "type": "string",
-                        "label": "ActiveMapMod",
-                        "default": "",
-                        "description": "Value type: mod ID for currently active mod mapSpecifies which mod map is loaded."
-                    },
-                    "ActiveTotalConversion": {
-                        "type": "string",
-                        "label": "ActiveTotalConversion",
-                        "default": "",
-                        "description": "Value type: ModIDUsed to specify a total conversion mod (e.g.: Primitive Plus). Alternatively, the command line option -TotalConversionMod=<ModID> can also be set."
                     },
                     "DifficultyOffset": {
                         "type": "float",
@@ -2423,26 +2432,6 @@
                     }
                 }
             },
-            "[SessionSettings]": {
-                "settings": {
-                    "Port": {
-                        "type": "int",
-                        "label": "Game Port",
-                        "min": 1025,
-                        "max": 65535,
-                        "default": 7777,
-                        "description": "Specifies the UDP Game Port. Peer port is this + 1. See Dedicated server setup"
-                    },
-                    "QueryPort": {
-                        "type": "int",
-                        "label": "Steam Query Port",
-                        "min": 1025,
-                        "max": 65535,
-                        "default": 27015,
-                        "description": "Specifies the UDP Steam Query Port. See Dedicated server setup"
-                    }
-                }
-            },
             "[MultiHome]": {
                 "settings": {
                     "MultiHome": {
@@ -2454,7 +2443,16 @@
                 }
             },
             "[/Script/Engine.GameSession]": {
-                "settings": {}
+                "settings": {
+                    "MaxPlayers": {
+                        "type": "int",
+                        "label": "Max Players",
+                        "min": 1,
+                        "max": 100,
+                        "default": 10,
+                        "description": "Specifies the maximum number of players that can play on the server simultaneously. ASA: This setting is replaced with -WinLiveMaxPlayers in the command line options, as otherwise, it will force it back to the default value."
+                    }
+                }
             },
             "[Ragnarok]": {
                 "settings": {

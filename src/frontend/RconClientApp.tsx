@@ -47,7 +47,12 @@ interface RconClientAppState {
   activity: ActivityTab;
 }
 
-export class RconClientApp extends React.Component<{}, RconClientAppState> {
+interface RconClientAppErrorState {
+  error?: string | null;
+  errorTimeoutId?: ReturnType<typeof setTimeout> | null;
+}
+
+export class RconClientApp extends React.Component<{}, RconClientAppState & RconClientAppErrorState> {
   sidebarWidthDefault = 220;
   currentPlayersWidthDefault = 240;
   sidebarResizing = false;
@@ -65,9 +70,12 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
       if (res.ok) {
         const profiles = await res.json();
         this.setState({ serverProfiles: profiles });
+        this.clearError();
+      } else {
+        this.setError('Failed to load server profiles');
       }
     } catch (e) {
-      // Optionally show error in UI
+      this.setError('Failed to load server profiles');
       console.error('Failed to load server profiles', e);
     }
   };
@@ -402,13 +410,12 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
         body: JSON.stringify(profiles),
       });
       if (res.ok) {
-        //this.setState({ serverProfiles: profiles, showServerModal: false });
+        this.clearError();
       } else {
-        // Optionally show error in UI
-        alert('Failed to save server profiles');
+        this.setError('Failed to save server profiles');
       }
     } catch (e) {
-      alert('Failed to save server profiles');
+      this.setError('Failed to save server profiles');
     }
   };
 
@@ -473,10 +480,16 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
     });
   };
   render() {
-    const { activity } = this.state;
+    const { activity, error } = this.state;
     // Tab bar for activity switching
     return (
       <div style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden'}}>
+        {error && (
+          <div style={{ background: '#ffdddd', color: '#a00', padding: '8px 16px', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid #a00', zIndex: 10001 }}>
+            {error}
+            <button onClick={this.clearError} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#a00', fontWeight: 700, cursor: 'pointer' }}>×</button>
+          </div>
+        )}
         {/* Activity Tab Bar */}
         <div style={{display: 'flex', alignItems: 'center', background: '#222', color: '#fff', padding: '0.5em 1em', height: '3em'}}>
           <span style={{fontWeight: 'bold', fontSize: '1.2em', marginRight: '2em'}}>RCON Manager</span>
@@ -531,6 +544,8 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
           onClose={this.handleCloseServerModal}
           serverProfiles={this.state.serverProfiles}
           onSave={this.handleSaveServerProfiles}
+          error={error}
+          clearError={this.clearError}
         />
       </div>
     );
@@ -669,4 +684,25 @@ export class RconClientApp extends React.Component<{}, RconClientAppState> {
       </div>
     );
   }
+
+  setError = (msg: string, timeoutMs: number = 0) => {
+    if (this.state.errorTimeoutId) {
+      clearTimeout(this.state.errorTimeoutId);
+    }
+    if (timeoutMs > 0) {
+      const errorTimeoutId = setTimeout(() => {
+        this.setState({ error: null, errorTimeoutId: null });
+      }, timeoutMs);
+      this.setState({ error: msg, errorTimeoutId });
+    } else {
+      this.setState({ error: msg, errorTimeoutId: null });
+    }
+  };
+
+  clearError = () => {
+    if (this.state.errorTimeoutId) {
+      clearTimeout(this.state.errorTimeoutId);
+    }
+    this.setState({ error: null, errorTimeoutId: null });
+  };
 }

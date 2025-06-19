@@ -20,12 +20,15 @@ interface ServerManagementModalProps {
   onClose: () => void;
   serverProfiles: ServerProfile[];
   onSave: (profiles: ServerProfile[]) => void;
+  error?: string | null;
+  clearError?: () => void;
 }
 
 interface ServerManagementModalState {
   profiles: ServerProfile[];
   editingIndex: number | null;
   editProfile: ServerProfile;
+  error?: string | null;
 }
 
 export class ServerManagementModal extends React.Component<ServerManagementModalProps, ServerManagementModalState> {
@@ -35,6 +38,7 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
       profiles: props.serverProfiles,
       editingIndex: null,
       editProfile: { name: '', host: '', port: 25575, password: '', game: '', features: { currentPlayers: { enabled: false, updateInterval: 10 } }, directory: '' },
+      error: null,
     };
   }
 
@@ -93,23 +97,38 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
 
   handleSave = () => {
     const { editingIndex, editProfile, profiles } = this.state;
+    // Basic validation
+    if (!editProfile.name || !editProfile.host || !editProfile.port || !editProfile.password) {
+      if (this.props.clearError) this.props.clearError();
+      this.setState({ error: 'Name, Host, Port, and Password are required.' });
+      return;
+    }
     let newProfiles = profiles.slice();
     if (editingIndex === -1) {
       newProfiles.push(editProfile);
     } else if (editingIndex !== null) {
       newProfiles[editingIndex] = editProfile;
     }
-    this.setState({ profiles: newProfiles, editingIndex: null });
+    this.setState({ profiles: newProfiles, editingIndex: null, error: null });
+    if (this.props.clearError) this.props.clearError();
     this.props.onSave(newProfiles);
   };
 
   render() {
-    const { show, onClose } = this.props;
-    const { profiles, editingIndex, editProfile } = this.state;
+    const { show, onClose, error: propError, clearError } = this.props;
+    const { profiles, editingIndex, editProfile, error } = this.state;
     if (!show) return null;
     return (
       <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-        <div style={{background: '#23272e', color: '#eee', padding: 24, borderRadius: 8, minWidth: 400, boxShadow: '0 2px 16px #0008'}}>
+        <div style={{background: '#23272e', color: '#eee', padding: 24, borderRadius: 8, minWidth: 400, boxShadow: '0 2px 16px #0008', position: 'relative'}}>
+          {(error || propError) && (
+            <div style={{ background: '#ffdddd', color: '#a00', padding: '8px 16px', textAlign: 'center', fontWeight: 600, borderRadius: 4, marginBottom: 12, border: '1px solid #a00', position: 'absolute', left: 0, right: 0, top: -40 }}>
+              {error || propError}
+              {(error || (() => this.setState({ error: null })) ) && (
+                <button onClick={clearError || (() => this.setState({ error: null }))} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#a00', fontWeight: 700, cursor: 'pointer' }}>×</button>
+              )}
+            </div>
+          )}
           <h2>Manage Servers</h2>
           <table style={{width: '100%', marginBottom: 16}}>
             <thead>
