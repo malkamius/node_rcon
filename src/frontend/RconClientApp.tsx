@@ -574,11 +574,11 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
     const currentSidebarWidth = this.getSidebarWidth();
     const currentPlayersWidth = this.getCurrentPlayersWidth();
     return (
-      <div style={{display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden'}}>
+      <div style={{display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', height: '100%'}}>
         {/* Sidebar for tabs, resizable */}
         <div
           key={`sidebar-${this.state.activeTab}-${profileLayoutVersion}`}
-          style={{width: currentSidebarWidth, background: '#191c20', color: '#eee', borderRight: '1px solid #333', padding: '1em 0', position: 'relative', minWidth: 80, maxWidth: 400, flexShrink: 0, flexGrow: 0}}>
+          style={{width: currentSidebarWidth, background: '#191c20', color: '#eee', borderRight: '1px solid #333', padding: '1em 0', position: 'relative', minWidth: 80, maxWidth: 400, flexShrink: 0, flexGrow: 0, height: '100%'}}>
           <div style={{padding: '0 1em', fontWeight: 'bold'}}>Servers</div>
           <TabManager
             serverProfiles={serverProfiles}
@@ -594,7 +594,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
         </div>
 
         {/* Main terminal area with terminal and status */}
-        <div style={{flex: 1, background: '#23272e', display: 'flex', flexDirection: 'row', minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden'}}>
+        <div style={{flex: 1, background: '#23272e', display: 'flex', flexDirection: 'row', minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden', height: '100%'}}>
           {/* Current Players window (if enabled), resizable */}
           {showCurrentPlayers && (
             <div
@@ -621,7 +621,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
               />
             </div>
           )}
-          <div style={{flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, overflow: 'hidden'}}>
+          <div style={{flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, overflow: 'hidden', height: '100%'}}>
             <TerminalArea
               activeTab={this.state.activeTab}
               status={this.state.activeTab ? this.state.statusMap[this.state.activeTab] : undefined}
