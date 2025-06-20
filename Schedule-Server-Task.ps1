@@ -30,7 +30,13 @@ Param (
 
     [Parameter(HelpMessage="The Server Password (plain text string, optional).")]
     [string]$ServerPasswordPlain, # Renamed to signify plain text input
-
+	
+	[Parameter(HelpMessage="Mods list to supply in command line arguments")]
+    [string]$ModIDs,
+	
+	[Parameter(HelpMessage="The NodeRCONUser's password")]
+    [string]$NodeRCONUserPassword,
+	
     [Parameter(HelpMessage="Display this help message.")]
     [switch]$Help
 )
@@ -247,7 +253,18 @@ if (-not [string]::IsNullOrWhiteSpace($ServerPasswordString)) {
 $ArkArguments += " Port=$GamePort"
 # These parameters assume your INI files will *not* contain them, or these will override them.
 # If using the 'linked binaries' approach, this script assumes the INI files are in ServerRootDirectory\ShooterGame\Saved\Config\WindowsServer\
+if (-not [string]::IsNullOrWhiteSpace($ModIDs))
+{
+	# Replace ", " with ","
+    $ModIDs = $ModIDs -replace ", ", ","
+    # Replace " " with ","
+    $ModIDs = $ModIDs -replace " ", ","
+	
+	$ArkArguments += " -mods=" + $ModIDs
+}
+
 $ArkArguments += " -ForceAllowCaveFlyers -NoBattlEye -servergamelog -severgamelogincludetribelogs -ServerRCONOutputTribeLogs -NotifyAdminCommandsInChat -nosteamclient -game -server -log -crossplay -automanagedmods"
+
 
 Write-Host "`n--- Final Task Configuration ---"
 Write-Host "Task Name: '$TaskName'"
@@ -278,27 +295,27 @@ try {
     # Define the trigger: run at system startup
     $Trigger = New-ScheduledTaskTrigger -AtStartup
 
-    # Define the principal: run as Built-in Administrators group with highest available privileges
-    $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Administrators" -RunLevel Highest
+	if ([string]::IsNullOrWhiteSpace($NodeRCONUserPassword))
+	{
+		Write-Host "Please enter the password for the Node.RCON user."
+		$NodeRCONUserPassword = Read-Host # This prompts for the password securely
+	}
 
     # Define the settings for the scheduled task
     $Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew `
                                             -ExecutionTimeLimit ([TimeSpan]::FromSeconds(0)) `
                                             -Priority 7
-    # Parameters like -StartWhenAvailable, -RunOnlyIfNetworkAvailable, -Hidden are omitted here
-    # as their desired value from the XML was 'false', and they are switch parameters.
-    # By default, omitting them sets them to false.
 
     # Print the command before executing it for logging/debugging purposes
     Write-Host "`n--- Registering Scheduled Task ---"
     Write-Host "Register-ScheduledTask -TaskName `"$TaskName`" -Description `"$TaskDescription`" -Action `$Action -Trigger `$Trigger -Principal `$Principal -Settings `$Settings -Force"
-
     # Register the scheduled task
     Register-ScheduledTask -TaskName $TaskName `
                            -Description $TaskDescription `
                            -Action $Action `
                            -Trigger $Trigger `
-                           -Principal $Principal `
+                           -User "Node.RCON" `
+						   -Password $NodeRCONUserPassword `
                            -Settings $Settings `
                            -Force
 
