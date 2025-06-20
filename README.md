@@ -1,6 +1,6 @@
 # Node.js RCON Manager
 
-![Screenshot](screeenshot.jpg)
+![Screenshot](screenshot.jpg)
 
 A RCON manager for game servers, with a persistent Node.js backend and a React + xterm.js frontend. Supports multiple server profiles, live player lists, chat, and more.
 Right now we are focusing on ARK Survival Ascended
@@ -115,4 +115,5 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Screenshot
 
-![Screenshot](screeenshot.jpg)
+![Screenshot](screenshot.jpg)
+![Screenshot](screenshot2.jpg)
