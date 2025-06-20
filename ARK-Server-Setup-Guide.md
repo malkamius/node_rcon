@@ -89,6 +89,48 @@ This guide explains how to use the provided PowerShell scripts to set up and man
 
 ---
 
+## Example Command Parameters (using `password` for NodeRCONUser)
+
+### 1. Create the RCON Admin User
+```powershell
+.\Create-RCON-User.ps1
+# (You will be prompted for the password. Enter: password)
+```
+
+### 2. Download SteamCMD
+```powershell
+.\Download-steamcmd.ps1 -installDir "C:\steamcmd"
+```
+
+### 3. Install Base Server Files
+```powershell
+.\Install-Base-Server-Files.ps1 -BaseServerInstallDirectory "C:\ArkASA_SharedFiles" -SteamCmdPath "C:\steamcmd\steamcmd.exe"
+```
+
+### 4. Create a Server Instance
+```powershell
+.\Install-Instance.ps1 -BaseServerInstallDirectory "C:\ArkASA_SharedFiles" -InstanceDirectory "C:\ArkServers\MyServer1"
+# For cross-drive:
+.\Install-Instance.ps1 -BaseServerInstallDirectory "C:\ArkASA_SharedFiles" -InstanceDirectory "D:\ArkServers\MyServer1" -LinkType SymbolicLink
+```
+
+### 5. Schedule the Server to Start on Boot
+```powershell
+.\Schedule-Server-Task.ps1 -ServerName "My Ark Server" -ServerRootDirectory "C:\ArkServers\MyServer1" -AdminPasswordPlain "password" -NodeRCONUserPassword "password"
+# Optional: -MapName "TheIsland_WP" -QueryPort 27015 -MaxPlayers 10 -GamePort 7777 -ModIDs "123456,789012"
+```
+
+### 6. Update the Server
+```powershell
+.\Update-ARK-Server.ps1 -ServerInstallDirectory "C:\ArkASA_SharedFiles" -SteamCmdPath "C:\steamcmd\steamcmd.exe"
+```
+
+---
+
+**Tip:** Replace paths and parameters as needed. For production, use a strong password instead of `password`.
+
+---
+
 ## Notes
 - Always run scripts in an elevated PowerShell session ("Run as Administrator").
 - Adjust paths and parameters as needed for your environment.
