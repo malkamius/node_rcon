@@ -22,6 +22,8 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
   const [error, setError] = useState<string | null>(null);
   const [profiles, setProfiles] = useState(serverProfiles);
   const selectedProfile = selectedIdx !== null ? profiles[selectedIdx] : null;
+  // Collapsible sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Load settings template on mount
   useEffect(() => {
@@ -200,6 +202,24 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
     setEditingFile(null);
   };
 
+  // Responsive: auto-close sidebar on small screens after selection
+  useEffect(() => {
+    if (window.innerWidth < 600 && sidebarOpen) {
+      // Optionally close sidebar after selection
+      // setSidebarOpen(false);
+    }
+  }, [selectedIdx]);
+
+  // Responsive: close sidebar on resize if small
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 600 && sidebarOpen) setSidebarOpen(false);
+      if (window.innerWidth >= 600 && !sidebarOpen) setSidebarOpen(true);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sidebarOpen]);
+
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
       <h2>Server Configuration</h2>
@@ -209,34 +229,72 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
           <button onClick={() => setError(null)} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#a00', fontWeight: 700, cursor: 'pointer' }}>×</button>
         </div>
       )}
-      <div style={{ display: 'flex', gap: 32, flex: 1, minHeight: 0 }}>
-        {/* Server List */}
-        <div style={{ minWidth: 260 }}>
-          <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Servers</div>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {profiles.map((profile, idx) => (
-              <li
-                key={idx}
-                style={{
-                  padding: '8px 12px',
-                  marginBottom: 4,
-                  background: selectedIdx === idx ? '#23272e' : '#191c20',
-                  color: selectedIdx === idx ? '#fff' : '#ccc',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  border: selectedIdx === idx ? '1px solid #4af' : '1px solid #222',
-                }}
-                onClick={() => setSelectedIdx(idx)}
-              >
-                <div style={{ fontWeight: 'bold' }}>{profile.name || profile.directory || `${profile.host}:${profile.port}`}</div>
-              </li>
-            ))}
-          </ul>
-          <button style={{ marginTop: 16 }} onClick={onManageServers}>Manage Servers</button>
+
+      <div style={{ display: 'flex', gap: 32, flex: 1, minHeight: 0, position: 'relative' }}>
+        {/* Collapsible Server List */}
+        <div
+          style={{
+            // minWidth: sidebarOpen ? 220 : 0,
+            // width: sidebarOpen ? 220 : 0,
+            transition: 'all 0.2s',
+            overflow: 'hidden',
+            background: '#191c20',
+            borderRight: '1px solid #222',
+            display: 'flex',
+            flexDirection: 'column',
+            zIndex: 2,
+            position: 'relative',
+            height: '100%',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 8px 8px 0' }}>
+            {sidebarOpen && (<span style={{ fontWeight: 'bold', marginLeft: 8 }}>Servers</span>)}
+            <button
+              aria-label={sidebarOpen ? 'Hide server list' : 'Show server list'}
+              onClick={() => setSidebarOpen(o => !o)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#ccc',
+                fontSize: 20,
+                cursor: 'pointer',
+                marginRight: 4,
+                marginLeft: 8,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              {sidebarOpen ? '⮜' : '☰'}
+            </button>
+          </div>
+          {sidebarOpen && (
+            <>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {profiles.map((profile, idx) => (
+                  <li
+                    key={idx}
+                    style={{
+                      padding: '8px 12px',
+                      marginBottom: 4,
+                      background: selectedIdx === idx ? '#23272e' : '#191c20',
+                      color: selectedIdx === idx ? '#fff' : '#ccc',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      border: selectedIdx === idx ? '1px solid #4af' : '1px solid #222',
+                    }}
+                    onClick={() => setSelectedIdx(idx)}
+                  >
+                    <div style={{ fontWeight: 'bold' }}>{profile.name || profile.directory || `${profile.host}:${profile.port}`}</div>
+                  </li>
+                ))}
+              </ul>
+              <button style={{ marginTop: 16, marginLeft: 8, marginBottom: 8 }} onClick={onManageServers}>Manage Servers</button>
+            </>
+          )}
         </div>
 
         {/* INI Editor Area */}
-        <div style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ marginBottom: 16 }}>
             <button
               disabled={!selectedProfile}
@@ -249,10 +307,13 @@ export const ServerConfigTab: React.FC<{ serverProfiles: Array<{
             >Edit GameUserSettings.ini</button>
             
           </div>
+          
           <div
             style={{ background: '#191c20', padding: 16, borderRadius: 6, color: '#eee', border: '1px solid #444', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
           >
+            
             {editingFile && selectedProfile ? (
+              // minHeight: 0 is important here to allow the editor to fill available space, default is auto, which causes the scrollbar to not appear correctly on the child div
               <div style={{flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0}}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <h3 style={{ margin: 0 }}>Editing {editingFile} for {selectedProfile.name}</h3>

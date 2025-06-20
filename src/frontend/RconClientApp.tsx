@@ -45,6 +45,8 @@ interface RconClientAppState {
   profileLayoutVersion?: number;
   disconnected?: boolean;
   activity: ActivityTab;
+  sidebarOpen?: boolean;
+  currentPlayersOpen?: boolean;
 }
 
 interface RconClientAppErrorState {
@@ -483,7 +485,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
     const { activity, error } = this.state;
     // Tab bar for activity switching
     return (
-      <div style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden'}}>
+      <div style={{display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', minWidth: '0px'}}>
         {error && (
           <div style={{ background: '#ffdddd', color: '#a00', padding: '8px 16px', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid #a00', zIndex: 10001 }}>
             {error}
@@ -491,7 +493,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
           </div>
         )}
         {/* Activity Tab Bar */}
-        <div style={{display: 'flex', alignItems: 'center', background: '#222', color: '#fff', padding: '0.5em 1em', height: '3em'}}>
+        <div style={{display: 'flex', alignItems: 'center', background: '#222', color: '#fff', padding: '0.5em 1em', height: '3em', overflowX: 'auto'}}>
           <span style={{fontWeight: 'bold', fontSize: '1.2em', marginRight: '2em'}}>RCON Manager</span>
           <div style={{display: 'flex', gap: '1em'}}>
             <button
@@ -573,35 +575,103 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
     }
     const currentSidebarWidth = this.getSidebarWidth();
     const currentPlayersWidth = this.getCurrentPlayersWidth();
+    // Collapsible sidebar state for RCON tabs (class state)
+    const sidebarOpen = this.state.sidebarOpen !== undefined ? this.state.sidebarOpen : true;
+    const currentPlayersOpen = this.state.currentPlayersOpen !== undefined ? this.state.currentPlayersOpen : true;
     return (
-      <div style={{display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', height: '100%'}}>
-        {/* Sidebar for tabs, resizable */}
+      <div style={{display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', height: '100%', position: 'relative'}}>
+        {/* Collapsible Sidebar for tabs */}
+        
         <div
           key={`sidebar-${this.state.activeTab}-${profileLayoutVersion}`}
-          style={{width: currentSidebarWidth, background: '#191c20', color: '#eee', borderRight: '1px solid #333', padding: '1em 0', position: 'relative', minWidth: 80, maxWidth: 400, flexShrink: 0, flexGrow: 0, height: '100%'}}>
-          <div style={{padding: '0 1em', fontWeight: 'bold'}}>Servers</div>
-          <TabManager
-            serverProfiles={serverProfiles}
-            statusMap={this.state.statusMap}
-            onTabSelect={this.handleTabSelect}
-            activeTab={this.state.activeTab}
-          />
-          {/* Sidebar resize handle */}
-          <div
-            style={{position: 'absolute', top: 0, right: -3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 30, background: 'transparent'}}
-            onMouseDown={this.handleSidebarResizeStart}
-          />
+          style={{
+            minWidth: sidebarOpen ? 120 : 0,
+            // width: sidebarOpen ? currentSidebarWidth : 0,
+            transition: 'all 0.2s',
+            overflow: 'hidden',
+            background: '#191c20',
+            borderRight: '1px solid #333',
+            color: '#eee',
+            display: 'flex',
+            flexDirection: 'column',
+            zIndex: 2,
+            position: 'relative',
+            height: '100%',
+            maxWidth: 400,
+            flexShrink: 0,
+            flexGrow: 0,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 8px 8px 0' }}>
+            {sidebarOpen && <span style={{ fontWeight: 'bold', marginLeft: 8 }}>Servers</span>}
+            <button
+              aria-label={sidebarOpen ? 'Hide server list' : 'Show server list'}
+              onClick={() => this.setState({ sidebarOpen: !sidebarOpen })}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#ccc',
+                fontSize: 20,
+                cursor: 'pointer',
+                marginRight: 4,
+                marginLeft: 8,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              {sidebarOpen ? '⮜' : '☰'}
+            </button>
+          </div>
+          {sidebarOpen && (
+            <>
+              <TabManager
+                serverProfiles={serverProfiles}
+                statusMap={this.state.statusMap}
+                onTabSelect={this.handleTabSelect}
+                activeTab={this.state.activeTab}
+              />
+              {/* Sidebar resize handle */}
+              <div
+                style={{position: 'absolute', top: 0, right: -3, width: 6, height: '100%', cursor: 'col-resize', zIndex: 30, background: 'transparent'}}
+                onMouseDown={this.handleSidebarResizeStart}
+              />
+            </>
+          )}
         </div>
+
 
         {/* Main terminal area with terminal and status */}
         <div style={{flex: 1, background: '#23272e', display: 'flex', flexDirection: 'row', minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden', height: '100%'}}>
+          <div style={{display: 'flex', flexDirection: 'column'}}>
+           {showCurrentPlayers && (
+          <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', padding: '8px 8px 8px 0' }}>
+            <button
+              aria-label={currentPlayersOpen ? 'Hide server list' : 'Show server list'}
+              onClick={() => this.setState({ currentPlayersOpen: !currentPlayersOpen })}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#ccc',
+                fontSize: 20,
+                cursor: 'pointer',
+                marginRight: 4,
+                marginLeft: 8,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              {currentPlayersOpen ? '⮜' : '☰'}
+            </button>
+          </div>
+          )}
+          {/* Sidebar width (if enabled), resizable */}
           {/* Current Players window (if enabled), resizable */}
-          {showCurrentPlayers && (
+          {currentPlayersOpen && showCurrentPlayers && (
             <div
               key={`currentplayers-${this.state.activeTab}-${profileLayoutVersion}`}
               style={{
                 width: currentPlayersWidth,
-                minWidth: 80,
+                minWidth: 0,
                 maxWidth: 400,
                 position: 'relative',
                 flexShrink: 0,
@@ -621,6 +691,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
               />
             </div>
           )}
+          </div>
           <div style={{flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, overflow: 'hidden', height: '100%'}}>
             <TerminalArea
               activeTab={this.state.activeTab}
@@ -638,7 +709,7 @@ export class RconClientApp extends React.Component<{}, RconClientAppState & Rcon
                 onChange={this.handleInputChange}
                 onKeyDown={this.handleInputKeyDown}
                 placeholder="Type command..."
-                style={{flex: 1, fontSize: '1em', padding: '0.5em', background: '#23272e', color: '#eee', border: '1px solid #444', borderRadius: 4}}
+                style={{flex: 1, fontSize: '1em', padding: '0.5em', background: '#23272e', color: '#eee', border: '1px solid #444', borderRadius: 4, minWidth: '40px'}}
                 autoComplete="off"
               />
               <button
