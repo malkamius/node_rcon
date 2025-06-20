@@ -78,7 +78,7 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
   }, [session, activeTab, sessionVersion]);
 
   return (
-    <div style={{ flex: 1, background: '#181c20', position: 'relative', overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div style={{ flex: 1, background: '#181c20', position: 'relative', overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
       <div ref={xtermContainerRef} style={{ width: '100%', height: '100%' }} />
       {!activeTab && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
