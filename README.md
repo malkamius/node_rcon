@@ -14,6 +14,7 @@ Right now we are focusing on ARK Survival Ascended
 - **Live Player List**: See current players (for ARK SE/SA) with live updates.
 - **Chat Integration**: View in-game chat in real time.
 - **Server Management**: Add/edit/remove servers.
+- **Local Server Settings**: Edit basic settings(Game/GameUserSettings) of the dedicated server if running on the same box
 
 ---
 
