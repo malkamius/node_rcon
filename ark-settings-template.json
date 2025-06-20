@@ -243,12 +243,7 @@
                         "default": "",
                         "description": "Overrides items crafting resource requirements. See Item related section for more details."
                     },
-                    "ConfigOverrideItemMaxQuantity": {
-                        "type": "string",
-                        "label": "ConfigOverrideItemMaxQuantity",
-                        "default": "",
-                        "description": "Overrides items stack size on a per-item basis. See Item related section for more details."
-                    },
+
                     "ConfigOverrideNPCSpawnEntriesContainer": {
                         "type": "string",
                         "label": "ConfigOverrideNPCSpawnEntriesContainer",
@@ -327,12 +322,6 @@
                         "default": 3.2,
                         "description": "Scales the damage done to a harvestable item/entity by a tame. A higher number increases (by percentage) the speed of harvesting."
                     },
-                    "DinoSpawnWeightMultipliers": {
-                        "type": "string",
-                        "label": "DinoSpawnWeightMultipliers",
-                        "default": "",
-                        "description": "Globally overrides creatures spawns likelihood. See Creature Spawn related section for more detail."
-                    },
                     "DinoTurretDamageMultiplier": {
                         "type": "float",
                         "label": "DinoTurretDamageMultiplier",
@@ -350,12 +339,6 @@
                         "label": "EngramEntryAutoUnlocks",
                         "default": "",
                         "description": "Automatically unlocks the specified Engram when reaching the level specified. See Engram Entries related section for more detail."
-                    },
-                    "ExcludeItemIndices": {
-                        "type": "string",
-                        "label": "ExcludeItemIndices",
-                        "default": "",
-                        "description": "Excludes an item from supply crates specifying its Item ID. You can have multiple lines of this option."
                     },
                     "FastDecayInterval": {
                         "type": "int",
@@ -410,12 +393,6 @@
                         "label": "HairGrowthSpeedMultiplier",
                         "default": 1.0,
                         "description": "Scales the hair growth. Higher values increase speed of growth."
-                    },
-                    "HarvestResourceItemAmountClassMultipliers": {
-                        "type": "string",
-                        "label": "HarvestResourceItemAmountClassMultipliers",
-                        "default": "",
-                        "description": "Scales on a per-resource type basis, the amount of resources harvested. See Items related section for more details."
                     },
                     "HarvestXPMultiplier": {
                         "type": "float",

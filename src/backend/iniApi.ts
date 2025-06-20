@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import ini from 'ini';
+import * as ini from './ark-ini';
 
 const router = express.Router();
 
@@ -93,17 +93,45 @@ router.post('/api/server-ini/:profileIdx/:file', express.json(), (req, res) => {
     }
     // Deep merge helper: merges b into a, returns new object
     function deepMerge(a: any, b: any): any {
-        if (typeof a !== 'object' || a === null) return b;
-        if (typeof b !== 'object' || b === null) return a;
-        const result: any = Array.isArray(a) ? [...a] : { ...a };
-        for (const key of Object.keys(b)) {
-            if (b[key] && typeof b[key] === 'object' && !Array.isArray(b[key])) {
-                result[key] = deepMerge(a[key], b[key]);
-            } else {
-            result[key] = b[key];
-            }
+        // Handle null/undefined
+        if (a === undefined || a === null) return b;
+        if (b === undefined || b === null) return a;
+
+        // Handle DuplicateEntry type
+        const isDup = (v: any) => v && typeof v === 'object' && v.__duplicate === true && Array.isArray(v.values);
+
+        // If both are DuplicateEntry, merge their values
+        if (isDup(a) && isDup(b)) {
+            return { __duplicate: true, values: [...a.values, ...b.values] };
         }
-        return result;
+        // If one is DuplicateEntry, one is scalar
+        if (isDup(a)) {
+            return { __duplicate: true, values: [...a.values, b] };
+        }
+        if (isDup(b)) {
+            return { __duplicate: true, values: [a, ...b.values] };
+        }
+        // If both are arrays (bracketed key arrays), merge arrays
+        if (Array.isArray(a) && Array.isArray(b)) {
+            return [...a, ...b];
+        }
+        // If one is array, one is scalar, merge as array
+        if (Array.isArray(a)) {
+            return [...a, b];
+        }
+        if (Array.isArray(b)) {
+            return [a, ...b];
+        }
+        // If both are objects (sections), merge recursively
+        if (typeof a === 'object' && typeof b === 'object') {
+            const result: any = { ...a };
+            for (const key of Object.keys(b)) {
+                result[key] = deepMerge(a[key], b[key]);
+            }
+            return result;
+        }
+        // Otherwise, use b (new value overwrites old)
+        return b;
     }
 });
 
