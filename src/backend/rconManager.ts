@@ -33,6 +33,7 @@ export class RconManager extends EventEmitter {
   private connections: Map<string, ConnectionState> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private disconnectedSince: Map<string, number> = new Map();
 
   constructor() {
     super();
@@ -116,6 +117,10 @@ export class RconManager extends EventEmitter {
     try {
       const rcon = new Rcon({ host: profile.host, port: profile.port, password: profile.password });
       await rcon.connect();
+      // On successful connect, clear disconnectedSince
+      if (this.disconnectedSince.has(key)) {
+        this.disconnectedSince.delete(key);
+      }
       this.connections.set(key, { status: 'connected', since: Date.now(), rcon });
       this.emit('status', key, { status: 'connected', since: Date.now() });
       rcon.on('end', () => this.handleDisconnect(profile));
@@ -125,20 +130,38 @@ export class RconManager extends EventEmitter {
     }
   }
 
-  handleDisconnect(profile: ServerProfile) {
+async handleDisconnect(profile: ServerProfile) {
     const key = profile.host + ':' + profile.port;
     const state = this.connections.get(key);
-    if (state && state.rcon) {
-      try { state.rcon.end(); } catch {}
+    try {
+      if (state && state.rcon) {
+        // Remove only the listeners we added
+        state.rcon.off('end', () => this.handleDisconnect(profile));
+        state.rcon.off('error', () => this.handleDisconnect(profile));
+        // Call end only once and await it
+        await state.rcon.end();
+        //// Remove rcon instance to prevent double end
+        //delete state.rcon;
+      }
+    } catch (err) {
+      // Log error but do not crash
+      console.error('[RCON DISCONNECT ERROR]', err);
     }
-    this.connections.set(key, { status: 'disconnected', since: Date.now() });
-    this.emit('status', key, { status: 'disconnected', since: Date.now() });
+    let since = Date.now();
+    if (this.disconnectedSince.has(key)) {
+      since = this.disconnectedSince.get(key)!;
+    } else {
+      this.disconnectedSince.set(key, since);
+    }
+    this.connections.set(key, { status: 'disconnected', since });
+    this.emit('status', key, { status: 'disconnected', since });
     // Attempt reconnect every 5 seconds
     if (!this.reconnectTimers.has(key)) {
       const timer = setInterval(() => this.connect(profile), 5000);
       this.reconnectTimers.set(key, timer);
     }
   }
+
   async sendCommand(key: string, command: string): Promise<string> {
     const state = this.connections.get(key);
     if (state && state.status === 'connected' && state.rcon) {
