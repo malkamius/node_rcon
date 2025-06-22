@@ -16,11 +16,11 @@ Param (
 
 #region --- Help Message Display ---
 if ($Help -or ($PSBoundParameters.Count -lt 2)) {
-    Write-Host "--- Help for UpdateArkServer.ps1 ---"
+    Write-Host "--- Help for Update-ARK-Server.ps1 ---"
     Write-Host "Purpose: Updates the Ark Ascended Dedicated Server files using SteamCMD."
     Write-Host "         Designed for non-interactive use."
     Write-Host ""
-    Write-Host "Usage:   .\UpdateArkServer.ps1 -ServerInstallDirectory <string> [-SteamCmdPath <string>] [-Help]"
+    Write-Host "Usage:   .\Update-ARK-Server.ps1 -ServerInstallDirectory <string> [-SteamCmdPath <string>] [-Help]"
     Write-Host ""
     Write-Host "Parameters:"
     Write-Host "  -ServerInstallDirectory  [MANDATORY] The FULL path to the central Ark Ascended server installation"
@@ -31,8 +31,8 @@ if ($Help -or ($PSBoundParameters.Count -lt 2)) {
     Write-Host "  -Help                    [OPTIONAL] Display this help message and exit."
     Write-Host ""
     Write-Host "Example:"
-    Write-Host "  .\UpdateArkServer.ps1 -ServerInstallDirectory 'C:\ArkASA_SharedFiles' -SteamCmdPath 'D:\Games\steamcmd\steamcmd.exe'"
-    Write-Host "  .\UpdateArkServer.ps1 -ServerInstallDirectory 'C:\ArkASA_SharedFiles'"
+    Write-Host "  .\Update-ARK-Server.ps1 -ServerInstallDirectory 'C:\ArkASA_SharedFiles' -SteamCmdPath 'D:\Games\steamcmd\steamcmd.exe'"
+    Write-Host "  .\Update-ARK-Server.ps1 -ServerInstallDirectory 'C:\ArkASA_SharedFiles'"
     exit 0
 }
 #endregion

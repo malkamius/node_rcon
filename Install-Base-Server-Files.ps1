@@ -12,9 +12,9 @@ Param (
     [Parameter(HelpMessage="The FULL path to SteamCMD.exe (e.g., 'C:\steamcmd\steamcmd.exe').")]
     [string]$SteamCmdPath,
 
-	[Parameter(HelpMessage="The steam AppID")]
+    [Parameter(HelpMessage="The steam AppID")]
     [string]$appId="2430930", # ARK Survival Ascended dedicated server
-	
+    
     [Parameter(HelpMessage="Display this help message.")]
     [switch]$Help
 )
@@ -24,12 +24,12 @@ Param (
 #region --- Help Message Display ---
 # Display help if -Help switch is present or if no arguments were passed
 if ($Help -or ($PSBoundParameters.Count -lt 2)) {
-    Write-Host "--- Help for InstallBaseServerFiles.ps1 ---"
+    Write-Host "--- Help for Install-Base-Server-Files.ps1 ---"
     Write-Host "Purpose: Installs or updates the base Ark Survival Ascended Dedicated Server files using SteamCMD."
     Write-Host "         Designed for non-interactive use, requiring all parameters via command line."
     Write-Host "         It is recommended to run this script with Administrator privileges."
     Write-Host ""
-    Write-Host "Usage:   .\InstallBaseServerFiles.ps1 -BaseServerInstallDirectory <string> -SteamCmdPath <string> [-Help]"
+    Write-Host "Usage:   .\Install-Base-Server-Files.ps1 -BaseServerInstallDirectory <string> -SteamCmdPath <string> [-Help]"
     Write-Host ""
     Write-Host "Parameters:"
     Write-Host "  -BaseServerInstallDirectory  [OPTIONAL] The FULL path where the base Ark Ascended server files"
@@ -42,11 +42,11 @@ if ($Help -or ($PSBoundParameters.Count -lt 2)) {
     Write-Host "  -Help                        [OPTIONAL] Display this help message and exit."
     Write-Host ""
     Write-Host "Example:"
-    Write-Host "  .\InstallBaseServerFiles.ps1 -BaseServerInstallDirectory 'C:\ArkASA_SharedFiles' "
+    Write-Host "  .\Install-Base-Server-Files.ps1 -BaseServerInstallDirectory 'C:\ArkASA_SharedFiles' "
     Write-Host "              -SteamCmdPath 'C:\steamcmd\steamcmd.exe'"
     Write-Host ""
-    Write-Host "To display this help, run:   .\InstallBaseServerFiles.ps1 -Help"
-    Write-Host "Or just run without parameters: .\InstallBaseServerFiles.ps1"
+    Write-Host "To display this help, run:   .\Install-Base-Server-Files.ps1 -Help"
+    Write-Host "Or just run without parameters: .\Install-Base-Server-Files.ps1"
     exit 0
 }
 #endregion

@@ -22,15 +22,15 @@ Param (
 
 #region --- Help Message Display ---
 if ($Help -or ($PSBoundParameters.Count -lt 2)) {
-    Write-Host "--- Help for InstallInstance.ps1 ---"
+    Write-Host "--- Help for Install-Instance.ps1 ---"
     Write-Host "Purpose: Creates a new Ark Ascended server instance directory and sets up junctions/symbolic links"
     Write-Host "         to the shared base server files. It automatically discovers files and directories to link,"
-    Write-Host "         excluding 'ShooterGame' and 'ShooterGame\Saved' which are managed uniquely per instance."
+    Write-Host "         excluding 'ShooterGame' and 'ShooterGame\\Saved' which are managed uniquely per instance."
     Write-Host "         This allows multiple server instances to share core game files while having independent"
     Write-Host "         save data and configurations. Requires Administrator privileges to create links (will attempt elevation)."
     Write-Host ""
-    Write-Host "Usage:   .\InstallInstance.ps1 -BaseServerInstallDirectory <string> -InstanceDirectory <string>"
-    Write-Host "                                      [-LinkType <Junction|SymbolicLink>] [-Help]"
+    Write-Host "Usage:   .\Install-Instance.ps1 -BaseServerInstallDirectory <string> -InstanceDirectory <string>"
+    Write-Host "                                      [-LinkType <Junction|SymbolicLink>] [-ModIDs <string>] [-Help]"
     Write-Host ""
     Write-Host "Parameters:"
     Write-Host "  -BaseServerInstallDirectory  [MANDATORY] The FULL path to the base Ark Ascended server files"
@@ -45,9 +45,9 @@ if ($Help -or ($PSBoundParameters.Count -lt 2)) {
     Write-Host "  -Help                        [OPTIONAL] Display this help message and exit."
     Write-Host ""
     Write-Host "Example:"
-    Write-Host "  .\InstallInstance.ps1 -BaseServerInstallDirectory 'C:\ArkASA_SharedFiles' `
-               -InstanceDirectory 'D:\ArkInstances\MyNewPVP' -LinkType SymbolicLink"
-    Write-Host "  .\InstallInstance.ps1 -BaseServerInstallDirectory 'C:\ArkASA_SharedFiles' `
+    Write-Host "  .\Install-Instance.ps1 -BaseServerInstallDirectory 'C:\ArkASA_SharedFiles' `"
+               -InstanceDirectory 'D:\ArkInstances\MyNewPVP' -LinkType SymbolicLink -ModIDs '123,456'"
+    Write-Host "  .\Install-Instance.ps1 -BaseServerInstallDirectory 'C:\ArkASA_SharedFiles' `"
                -InstanceDirectory 'C:\ArkInstances\MyNewPVE'"
     exit 0
 }

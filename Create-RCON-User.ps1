@@ -36,8 +36,8 @@ function New-AdminUser {
         [Parameter(Mandatory=$true)]
         [System.Security.SecureString]$Password # Use SecureString for password parameter
     )
-	$Username = "Node.RCON"
-	$Description = "User for Node.RCON Manager"
+    $Username = "Node.RCON"
+    $Description = "User for Node.RCON Manager"
     # 1. Create the new local user
     Write-Host "Attempting to create user '$Username'..."
     try {
@@ -59,6 +59,17 @@ function New-AdminUser {
         Write-Host "Error adding user '$Username' to Administrators group: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
+if ($args -contains '-Help' -or $args -contains '/?') {
+    Write-Host "--- Help for Create-RCON-User.ps1 ---"
+    Write-Host "Purpose: Creates a local Windows user for Node.RCON Manager and adds it to the Administrators group."
+    Write-Host "         Requires Administrator privileges (will attempt elevation)."
+    Write-Host ""
+    Write-Host "Usage:   .\Create-RCON-User.ps1"
+    Write-Host ""
+    Write-Host "This script will prompt you for a password for the Node.RCON admin user."
+    Write-Host ""
+    exit 0
+}
 if (-not (Test-Administrator)) {
     Write-Warning "This script requires Administrator privileges."
     Write-Warning "Attempting to re-launch with elevation via UAC."
@@ -66,9 +77,9 @@ if (-not (Test-Administrator)) {
 }
 else
 {
-	Write-Host "Please enter a passord for the Node.RCON admin user."
-	$securePassword = Read-Host -AsSecureString # This prompts for the password securely
+    Write-Host "Please enter a password for the Node.RCON admin user."
+    $securePassword = Read-Host -AsSecureString # This prompts for the password securely
 
-	New-AdminUser -Password $securePassword
-	Read-Host
+    New-AdminUser -Password $securePassword
+    Read-Host
 }

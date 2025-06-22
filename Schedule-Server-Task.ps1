@@ -19,36 +19,36 @@ Param (
     [Parameter(HelpMessage="The server's Query Port (e.g., '27015'). Default is '27015'.")]
     [int]$QueryPort = 27015,
 
-    [Parameter(HelpMessage="The maximum number of players (e.g., '10'). Default is '10'.")]
-    [int]$MaxPlayers = 10,
-
     [Parameter(HelpMessage="The server's Game Port (e.g., '7777'). Default is '7777'.")]
     [int]$GamePort = 7777,
+
+    [Parameter(HelpMessage="The maximum number of players (e.g., '10'). Default is '10'.")]
+    [int]$MaxPlayers = 10,
 
     [Parameter(HelpMessage="The Server Admin Password (plain text string).")]
     [string]$AdminPasswordPlain, # Renamed to signify plain text input
 
     [Parameter(HelpMessage="The Server Password (plain text string, optional).")]
     [string]$ServerPasswordPlain, # Renamed to signify plain text input
-	
-	[Parameter(HelpMessage="Mods list to supply in command line arguments")]
+    
+    [Parameter(HelpMessage="Mods list to supply in command line arguments")]
     [string]$ModIDs,
-	
-	[Parameter(HelpMessage="The NodeRCONUser's password")]
+    
+    [Parameter(HelpMessage="The NodeRCONUser's password")]
     [string]$NodeRCONUserPassword,
-	
+    
     [Parameter(HelpMessage="Display this help message.")]
     [switch]$Help
 )
 
 #region --- Help Message Display ---
 if ($Help -or ($PSBoundParameters.Count -lt 2)) {
-    Write-Host "--- Help for ArkScheduleTask.ps1 ---"
+    Write-Host "--- Help for Schedule-Server-Task.ps1 ---"
     Write-Host "Purpose: Creates a Windows Scheduled Task to launch an Ark Ascended Server on system boot."
     Write-Host "         Designed for non-interactive use, requiring all parameters via command line."
     Write-Host "         Requires Administrator privileges to create the task (will attempt elevation)."
     Write-Host ""
-    Write-Host "Usage:   .\ArkScheduleTask.ps1 -ServerName <string> -ServerRootDirectory <string>"
+    Write-Host "Usage:   .\Schedule-Server-Task.ps1 -ServerName <string> -ServerRootDirectory <string>"
     Write-Host "                                 [-MapName <string>] [-QueryPort <int>] [-MaxPlayers <int>]"
     Write-Host "                                 [-GamePort <int>] [-AdminPasswordPlain <string>]"
     Write-Host "                                 [-ServerPasswordPlain <string>] [-Help]"
@@ -63,18 +63,20 @@ if ($Help -or ($PSBoundParameters.Count -lt 2)) {
     Write-Host "                        Default: 'TheIsland_WP'."
     Write-Host "  -QueryPort            [OPTIONAL] The server's Query Port (e.g., '27015')."
     Write-Host "                        Default: 27015. Must be unique per server on the same IP."
-    Write-Host "  -MaxPlayers           [OPTIONAL] The maximum number of players (e.g., '10')."
-    Write-Host "                        Default: 10."
     Write-Host "  -GamePort             [OPTIONAL] The server's Game Port (e.g., '7777')."
     Write-Host "                        Default: 7777. Must be unique per server on the same IP."
+    Write-Host "  -MaxPlayers           [OPTIONAL] The maximum number of players (e.g., '10')."
+    Write-Host "                        Default: 10."
     Write-Host "  -AdminPasswordPlain   [OPTIONAL] The Server Admin Password (plain text string)."
-    Write-Host "                        If not provided, no admin password will be set for the server."
+    Write-Host "                        Recommended to instead configure this in the game ini files."
     Write-Host "  -ServerPasswordPlain  [OPTIONAL] The Server Password (plain text string)."
-    Write-Host "                        If not provided, the server will be public (no password)."
+    Write-Host "                        Recommended to instead configure this in the game ini files."
+    Write-Host "  -ModIDs               [OPTIONAL] Comma-separated list of mod IDs to be used for this instance."
+    Write-Host "                        Must be surrounded by quotes if multiple IDs are provided."
     Write-Host "  -Help                 [OPTIONAL] Display this help message and exit."
     Write-Host ""
     Write-Host "Example:"
-    Write-Host "  .\ArkScheduleTask.ps1 -ServerName 'My Ark PVE' -ServerRootDirectory 'C:\ArkServers\PVE_Server' `
+    Write-Host "  .\Schedule-Server-Task.ps1 -ServerName 'My Ark PVE' -ServerRootDirectory 'C:\ArkServers\PVE_Server' `
                -MapName 'TheIsland_WP' -QueryPort 27015 -MaxPlayers 30 -GamePort 7777 `
                -AdminPasswordPlain 'MyStrongAdminPass' -ServerPasswordPlain 'MyGamePass'"
     exit 0
@@ -255,12 +257,12 @@ $ArkArguments += " Port=$GamePort"
 # If using the 'linked binaries' approach, this script assumes the INI files are in ServerRootDirectory\ShooterGame\Saved\Config\WindowsServer\
 if (-not [string]::IsNullOrWhiteSpace($ModIDs))
 {
-	# Replace ", " with ","
+    # Replace ", " with ","
     $ModIDs = $ModIDs -replace ", ", ","
     # Replace " " with ","
     $ModIDs = $ModIDs -replace " ", ","
-	
-	$ArkArguments += " -mods=" + $ModIDs
+    
+    $ArkArguments += " -mods=" + $ModIDs
 }
 
 $ArkArguments += " -ForceAllowCaveFlyers -NoBattlEye -servergamelog -severgamelogincludetribelogs -ServerRCONOutputTribeLogs -NotifyAdminCommandsInChat -nosteamclient -game -server -log -crossplay -automanagedmods"
@@ -295,11 +297,11 @@ try {
     # Define the trigger: run at system startup
     $Trigger = New-ScheduledTaskTrigger -AtStartup
 
-	if ([string]::IsNullOrWhiteSpace($NodeRCONUserPassword))
-	{
-		Write-Host "Please enter the password for the Node.RCON user."
-		$NodeRCONUserPassword = Read-Host # This prompts for the password securely
-	}
+    if ([string]::IsNullOrWhiteSpace($NodeRCONUserPassword))
+    {
+        Write-Host "Please enter the password for the Node.RCON user."
+        $NodeRCONUserPassword = Read-Host # This prompts for the password securely
+    }
 
     # Define the settings for the scheduled task
     $Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew `
@@ -315,7 +317,7 @@ try {
                            -Action $Action `
                            -Trigger $Trigger `
                            -User "Node.RCON" `
-						   -Password $NodeRCONUserPassword `
+                           -Password $NodeRCONUserPassword `
                            -Settings $Settings `
                            -Force
 
