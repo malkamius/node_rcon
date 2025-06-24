@@ -34,8 +34,7 @@ Param (
     [Parameter(HelpMessage="Mods list to supply in command line arguments")]
     [string]$ModIDs,
     
-    [Parameter(HelpMessage="The NodeRCONUser's password")]
-    [string]$NodeRCONUserPassword,
+
     
     [Parameter(HelpMessage="Display this help message.")]
     [switch]$Help
@@ -297,18 +296,17 @@ try {
     # Define the trigger: run at system startup
     $Trigger = New-ScheduledTaskTrigger -AtStartup
 
-    if ([string]::IsNullOrWhiteSpace($NodeRCONUserPassword))
-    {
-        Write-Host "Please enter the password for the Node.RCON user."
-        $NodeRCONUserPassword = Read-Host # This prompts for the password securely
-    }
+
 
     # Define the settings for the scheduled task
     $Settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew `
                                             -ExecutionTimeLimit ([TimeSpan]::FromSeconds(0)) `
                                             -Priority 7
 
-    # Print the command before executing it for logging/debugging purposes
+
+    # Use SYSTEM account for the scheduled task principal
+    $Principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
     Write-Host "`n--- Registering Scheduled Task ---"
     Write-Host "Register-ScheduledTask -TaskName `"$TaskName`" -Description `"$TaskDescription`" -Action `$Action -Trigger `$Trigger -Principal `$Principal -Settings `$Settings -Force"
     # Register the scheduled task
@@ -316,8 +314,7 @@ try {
                            -Description $TaskDescription `
                            -Action $Action `
                            -Trigger $Trigger `
-                           -User "Node.RCON" `
-                           -Password $NodeRCONUserPassword `
+                           -Principal $Principal `
                            -Settings $Settings `
                            -Force
 
