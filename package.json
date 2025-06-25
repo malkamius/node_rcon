@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "build:backend": "tsc -p tsconfig.backend.json",
+    "postbuild:backend": "copy src\\backend\\*.ps* dist\\backend\\ & copy *.ps* dist\\backend\\",
     "build:frontend": "tsc -p tsconfig.frontend.json && webpack --config webpack.frontend.js",
-    "build": "npm run build:backend && npm run build:frontend",
+    "build": "npm run build:backend && npm run postbuild:backend && npm run build:frontend",
     "start": "node dist/backend/server.js"
   },
   "dependencies": {

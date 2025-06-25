@@ -5,10 +5,13 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import path from 'path';
 import fs from 'fs';
+
 import { getProfiles, saveProfiles } from './profiles';
 import { RconManager } from './rconManager';
 import iniApi from './iniApi';
 import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
+import { ensureSocketServer, sendAdminSocketCommand } from './adminSocketClient';
+import { exit } from 'process';
 
 const configPath = path.join(__dirname, '../../config.json');
 const defaultConfig = {
@@ -23,6 +26,17 @@ if (!fs.existsSync(configPath)) {
 }
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
+async function ensureSocket()
+{
+  await ensureSocketServer().catch(err => {
+    console.error('Failed to ensure admin socket server:', err);
+    exit(1);
+  });
+}
+ensureSocket().catch(err => {
+  console.error('Error ensuring admin socket server:', err);
+  exit(1);
+});
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -89,6 +103,7 @@ wss.on('connection', (ws) => {
   };
   rconManager.on('chatMessage', chatListener);
 
+
   ws.on('message', async (data) => {
     try {
       const msg = JSON.parse(data.toString());
@@ -96,6 +111,14 @@ wss.on('connection', (ws) => {
         // Use real RCON connection
         const output = await rconManager.sendCommand(msg.key, msg.command);
         ws.send(JSON.stringify({ type: 'output', key: msg.key, output }));
+      } else if (msg.type === 'adminTask' && typeof msg.script === 'string') {
+        // Execute admin task via socket server
+        try {
+          const result = await sendAdminSocketCommand(msg.script);
+          ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, result }));
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, error: String(err) }));
+        }
       }
     } catch {}
   });
