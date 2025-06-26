@@ -1,13 +1,80 @@
 # This script should be run as a scheduled task with 'Run with highest privileges'.
 # It listens on a TCP socket for commands and only executes whitelisted scripts.
 
+
 $Port = 12345
 $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ConfigPath = Join-Path $RootDir '..\..\config.json'
+
+
+# Load approved script hashes from config.json, or initialize if missing/empty
+$ApprovedHashes = @()
+$configContent = $null
+if (Test-Path $ConfigPath) {
+    try {
+        $configContent = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+        if ($configContent.approvedScriptHashes) {
+            $ApprovedHashes = $configContent.approvedScriptHashes
+        }
+    } catch {
+        Write-Warning "Could not read approvedScriptHashes from config.json. No scripts will be allowed."
+    }
+} else {
+    Write-Warning "config.json not found. No scripts will be allowed."
+}
+
+# If no hashes, prompt admin to select scripts to approve and update config.json
+if (-not $ApprovedHashes -or $ApprovedHashes.Count -eq 0) {
+    Write-Host "No approvedScriptHashes found in config.json."
+    $scriptFiles = Get-ChildItem -Path $RootDir -Filter '*.ps1' -File | Select-Object -ExpandProperty Name
+    if ($scriptFiles.Count -eq 0) {
+        Write-Warning "No PowerShell scripts found in $RootDir to approve."
+    } else {
+        Write-Host "Available scripts to approve:"
+        $scriptFiles | ForEach-Object { Write-Host "  $_" }
+        #$toApprove = Read-Host "Enter comma-separated script names to approve (or 'all' for all)"
+        $toApprove = 'all'
+        if ($toApprove -eq 'all') {
+            $approveList = $scriptFiles
+        } else {
+            $approveList = $toApprove -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' -and $scriptFiles -contains $_ }
+        }
+        $newHashes = @()
+        foreach ($script in $approveList) {
+            $fullPath = Join-Path $RootDir $script
+            if (Test-Path $fullPath -PathType Leaf) {
+                $hash = (Get-FileHash -Path $fullPath -Algorithm SHA256).Hash.ToLower()
+                $newHashes += $hash
+                Write-Host "Approved $script with hash $hash"
+            }
+        }
+        if ($newHashes.Count -gt 0) {
+            if (-not $configContent) {
+                $configContent = @{}
+            }
+            $configContent.approvedScriptHashes = $newHashes
+            $configContent | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+            $ApprovedHashes = $newHashes
+            Write-Host "Updated config.json with approved script hashes."
+        } else {
+            Write-Warning "No scripts approved. No scripts will be allowed."
+        }
+    }
+}
 
 function Is-Whitelisted($cmd) {
     $base = [System.IO.Path]::GetFileName($cmd)
     $fullPath = Join-Path $RootDir $base
-    return (Test-Path $fullPath -PathType Leaf)
+    if (-not (Test-Path $fullPath -PathType Leaf)) {
+        return $false
+    }
+    try {
+        $hash = (Get-FileHash -Path $fullPath -Algorithm SHA256).Hash.ToLower()
+        return $ApprovedHashes -contains $hash
+    } catch {
+        Write-Warning "Failed to hash $fullPath: $_"
+        return $false
+    }
 }
 
 $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)

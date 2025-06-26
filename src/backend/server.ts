@@ -37,6 +37,7 @@ ensureSocket().catch(err => {
   console.error('Error ensuring admin socket server:', err);
   exit(1);
 });
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });

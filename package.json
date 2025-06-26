@@ -7,7 +7,8 @@
     "postbuild:backend": "copy src\\backend\\*.ps* dist\\backend\\ & copy *.ps* dist\\backend\\",
     "build:frontend": "tsc -p tsconfig.frontend.json && webpack --config webpack.frontend.js",
     "build": "npm run build:backend && npm run postbuild:backend && npm run build:frontend",
-    "start": "node dist/backend/server.js"
+    "start": "node dist/backend/server.js",
+    "postinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./Register-AllTasks.ps1"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
