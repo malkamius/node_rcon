@@ -50,10 +50,16 @@ if (-not $ApprovedHashes -or $ApprovedHashes.Count -eq 0) {
         }
         if ($newHashes.Count -gt 0) {
             if (-not $configContent) {
-                $configContent = @{}
+                $configContent = [PSCustomObject]@{}
             }
-            $configContent.approvedScriptHashes = $newHashes
-            $configContent | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+            if (-not ($configContent.PSObject.Properties["approvedScriptHashes"])) {
+                $configContent | Add-Member -MemberType NoteProperty -Name approvedScriptHashes -Value $newHashes
+            } else {
+                $configContent.approvedScriptHashes = $newHashes
+            }
+            # Save as UTF-8 without BOM so we don't need to strip the byte order mark with nodejs
+            $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+            [System.IO.File]::WriteAllText($ConfigPath, ($configContent | ConvertTo-Json -Depth 10), $utf8NoBom)
             $ApprovedHashes = $newHashes
             Write-Host "Updated config.json with approved script hashes."
         } else {
@@ -72,15 +78,21 @@ function Is-Whitelisted($cmd) {
         $hash = (Get-FileHash -Path $fullPath -Algorithm SHA256).Hash.ToLower()
         return $ApprovedHashes -contains $hash
     } catch {
-        Write-Warning "Failed to hash $fullPath: $_"
+        Write-Warning "Failed to hash {$fullPath}: $_"
         return $false
     }
 }
 
-$listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
-$listener.Start()
-Write-Host "[ArkAdminSocket] Admin socket server started. Waiting for connections on port $Port..."
+try {
 
+    $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
+    $listener.Start()
+    Write-Host "[ArkAdminSocket] Admin socket server started. Waiting for connections on port {$Port}..."
+}
+catch {
+    Write-Error "[ArkAdminSocket] Failed to start listener on port {$Port}: $_"
+    exit 1
+}
 while ($true) {
     $client = $listener.AcceptTcpClient()
     $stream = $client.GetStream()

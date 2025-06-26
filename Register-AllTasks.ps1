@@ -21,17 +21,8 @@ if (-not (Test-Administrator)) {
 
 Write-Host "Running as administrator. Registering scheduled tasks..."
 
-# Register backend as SYSTEM
-$backendScript = Join-Path $PSScriptRoot '..\Register-BackendAsSystemTask.ps1'
-if (Test-Path $backendScript) {
-    Write-Host "Registering backend task..."
-    & $backendScript
-} else {
-    Write-Warning "Backend registration script not found: $backendScript"
-}
-
 # Register admin socket server as SYSTEM
-$adminScript = Join-Path $PSScriptRoot 'src\backend\Register-ArkAdminSocketServerTask.ps1'
+$adminScript = Join-Path $PSScriptRoot 'Register-ArkAdminSocketServerTask.ps1'
 if (Test-Path $adminScript) {
     Write-Host "Registering admin socket server task..."
     & $adminScript
@@ -40,3 +31,12 @@ if (Test-Path $adminScript) {
 }
 
 Write-Host "All registration scripts complete."
+
+# Register backend as SYSTEM
+$backendScript = Join-Path $PSScriptRoot 'Register-BackendAsSystemTask.ps1'
+if (Test-Path $backendScript) {
+    Write-Host "Registering backend task..."
+    & $backendScript
+} else {
+    Write-Warning "Backend registration script not found: $backendScript"
+}

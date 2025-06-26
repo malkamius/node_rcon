@@ -1,3 +1,13 @@
+# Installation Notes
+
+After running `npm install`, you do **not** need to run a separate build step. The install process will:
+
+- Automatically build the project (backend and frontend)
+- Register the backend service as a Windows scheduled task (runs as SYSTEM)
+- Register the instance installation socket service (admin socket server) as a Windows scheduled task
+
+Both services are set up and started automatically.
+No manual build or service registration is required after install.
 # Node.js RCON Manager
 
 ![Screenshot](screenshot.jpg)
