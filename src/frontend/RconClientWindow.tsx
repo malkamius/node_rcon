@@ -52,6 +52,7 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   disabled = false,
 }) => {
   const [command, setCommand] = useState('');
+  const wsRef = useRef<WebSocket | null>(null);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const [playersWidth, setPlayersWidth] = useState<number>(240);
@@ -70,6 +71,28 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
       setShowTimestamps(selectedProfile.showTimestamps !== false);
     }
   }, [selectedProfile]);
+
+  // Setup WebSocket for clear log
+  useEffect(() => {
+    if (!selectedKey) return;
+    if (wsRef.current) return;
+    // Use same protocol as page
+    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${wsProto}://${window.location.host}`;
+    const ws = new window.WebSocket(wsUrl);
+    wsRef.current = ws;
+    ws.onopen = () => {};
+    ws.onclose = () => { wsRef.current = null; };
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [selectedKey]);
+
+  const handleClearLog = () => {
+    if (!selectedKey || !wsRef.current || wsRef.current.readyState !== 1) return;
+    wsRef.current.send(JSON.stringify({ type: 'clearSessionLines', key: selectedKey }));
+  };
   const session = selectedKey ? terminalManager.getSession(selectedKey) : null;
   const status = selectedKey ? statusMap[selectedKey] : undefined;
 
@@ -196,6 +219,12 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
               </span>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                onClick={handleClearLog}
+                style={{ background: '#23272e', color: '#eee', border: '1px solid #444', borderRadius: 4, padding: '4px 10px', fontSize: 14, cursor: 'pointer' }}
+                disabled={!selectedKey || disabled}
+                title="Clear log"
+              >Clear log</button>
               <label style={{ display: 'flex', alignItems: 'center', fontSize: 14, color: '#ccc', cursor: 'pointer' }}>
                 <input
                   type="checkbox"

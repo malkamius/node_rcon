@@ -45,3 +45,4 @@ config.json
 package-lock.json
 log.txt
 
+logs/*.jsonl

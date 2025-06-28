@@ -99,7 +99,7 @@ app.post('/api/session-lines/:key', express.json(), (req, res) => {
   if (sessionLines[key].length > SESSION_LINES_MAX) {
     sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
   }
-  appendSessionLineToDisk(key, line);
+  saveSessionLinesToDisk(key, sessionLines[key]);
   // Broadcast new line to all clients
   broadcast('sessionLine', { key, line });
   res.json({ ok: true });
@@ -177,12 +177,27 @@ function broadcast(type: string, payload: any) {
     if (sessionLines[key].length > SESSION_LINES_MAX) {
       sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
     }
+    saveSessionLinesToDisk(key, sessionLines[key]);
     broadcast('sessionLine', { key, line });
   };
   rconManager.on('chatMessage', chatListener);
 // WebSocket: send status updates to clients
 // On WebSocket connection, send all session logs to the client
 wss.on('connection', (ws) => {
+  ws.on('message', async (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.type === 'clearSessionLines' && msg.key) {
+        sessionLines[msg.key] = [];
+        saveSessionLinesToDisk(msg.key, []);
+        // Broadcast empty log to all clients
+        broadcast('sessionLine', { key: msg.key, line: null });
+        // Also broadcast the full (empty) log for the key
+        broadcast('sessionLines', { key: msg.key });
+        return;
+      }
+    } catch {}
+  });
   ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
   // Send all session logs (all keys)
   // On connect, reload all session lines from disk for all known keys
@@ -218,6 +233,7 @@ wss.on('connection', (ws) => {
         if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
           sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
         }
+        saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
         broadcast('sessionLine', { key: msg.key, line: commandLine });
 
         // Use real RCON connection
@@ -234,6 +250,7 @@ wss.on('connection', (ws) => {
           if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
             sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
           }
+          saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
           broadcast('sessionLine', { key: msg.key, line: outputLine });
         }
         // (No need to send output event for legacy clients)
@@ -266,6 +283,24 @@ app.get('/api/profiles', (req, res) => {
 app.post('/api/profiles', express.json(), (req, res) => {
   if (!Array.isArray(req.body)) {
     return res.status(400).json({ error: 'Profiles must be an array' });
+  }
+  // Detect key changes and rename session log files if needed
+  const oldProfiles = getProfiles();
+  const oldKeys = oldProfiles.map((p: any) => `${p.host}:${p.port}`);
+  const newKeys = req.body.map((p: any) => `${p.host}:${p.port}`);
+  // If a profile changed key, rename its log file
+  for (let i = 0; i < oldProfiles.length; i++) {
+    const oldKey = oldKeys[i];
+    // Try to find a matching profile by some unique property (e.g., name or id)
+    // For now, if the old profile is not in newKeys, but a new profile exists at the same index, treat as rename
+    if (newKeys[i] && oldKey !== newKeys[i]) {
+      renameSessionLogFile(oldKey, newKeys[i]);
+      // Also update in-memory sessionLines
+      if (sessionLines[oldKey]) {
+        sessionLines[newKeys[i]] = sessionLines[oldKey];
+        delete sessionLines[oldKey];
+      }
+    }
   }
   saveProfiles(req.body);
   // Reload RCON connections

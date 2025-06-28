@@ -102,6 +102,11 @@ export const ServerManagerPage: React.FC = () => {
           // Real-time new line from backend
           terminalManager.appendLine(msg.key, msg.line.text, msg.line.timestamp, false);
           if (selectedKeyRef.current === msg.key) setSessionVersion((v) => v + 1);
+        } else if (msg.type === 'sessionLines' && msg.key) {
+          // Initial load of session lines
+          const session = terminalManager.getSession(msg.key);
+          session.lines = [];
+          setSessionVersion((v) => v + 1);
         } else if (msg.type === 'status') {
           setStatusMap((prev) => {
             const statusMap = { ...prev };
