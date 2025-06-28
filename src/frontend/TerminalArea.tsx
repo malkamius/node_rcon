@@ -3,16 +3,18 @@ import React, { useEffect, useRef } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import 'xterm/css/xterm.css';
-import { TerminalSession } from './rconTerminalManager';
+import { TerminalSession, TerminalLine } from './rconTerminalManager';
 
 interface TerminalAreaProps {
   activeTab: string | null;
   status?: { status: string; since: number };
   session: TerminalSession | null;
   sessionVersion?: number;
+  showTimestamps?: boolean;
+  loading?: boolean;
 }
 
-export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, session, sessionVersion }) => {
+export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, session, sessionVersion, showTimestamps = true, loading }) => {
   const xtermContainerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -55,15 +57,31 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
-    
+
     // Determine what content should be displayed
     let newContent = '';
-    if (session && session.lines.length > 0) {
-      newContent = session.lines.join('\r\n').replace(/\x1b\[2J/g, '');
+    if (loading) {
+      newContent = 'Loading history...';
+    } else if (session && session.lines.length > 0) {
+      if (typeof session.lines[0] === 'object' && 'text' in session.lines[0]) {
+        // TerminalLine[]
+        newContent = session.lines.map((line: TerminalLine) => {
+          if (showTimestamps && line.timestamp) {
+            const date = new Date(line.timestamp);
+            const ts = date.toLocaleTimeString([], { hour12: false });
+            return `[${ts}] ${line.text}`;
+          } else {
+            return line.text;
+          }
+        }).join('\r\n').replace(/\x1b\[2J/g, '');
+      } else {
+        // fallback for old string[]
+        newContent = (session.lines as any[]).join('\r\n').replace(/\x1b\[2J/g, '');
+      }
     } else if (activeTab) {
-      newContent = 'No output yet.';
+      newContent = '';
     }
-    
+
     // Only update if content has changed
     if (newContent !== lastWrittenContent.current) {
       term.clear();
@@ -73,9 +91,9 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       }
       lastWrittenContent.current = newContent;
     }
-    
+
     fitAddonRef.current?.fit();
-  }, [session, activeTab, sessionVersion]);
+  }, [session, activeTab, sessionVersion, showTimestamps]);
 
   return (
     <div style={{ flex: 1, background: '#181c20', position: 'relative', overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
@@ -83,6 +101,11 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       {!activeTab && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
           Select a server tab to start a session.
+        </div>
+      )}
+      {loading && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', background: 'rgba(24,28,32,0.85)', zIndex: 10 }}>
+          Loading history...
         </div>
       )}
       {activeTab && status && (

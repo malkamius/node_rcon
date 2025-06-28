@@ -1,5 +1,3 @@
-
-
 import express from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
@@ -38,9 +36,92 @@ ensureSocket().catch(err => {
   exit(1);
 });
 
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
+
+// In-memory session lines store (keyed by server key)
+const SESSION_LINES_MAX = 100;
+const LOGS_DIR = path.join(__dirname, '../../logs');
+if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true });
+// Now supports: { text, timestamp, guid?, type? }
+const sessionLines: Record<string, { text: string; timestamp: number; guid?: string; type?: 'command' | 'output' }[]> = {};
+
+function keyToFilename(key: string) {
+  // Replace : and / with _ for cross-platform safety
+  return path.join(LOGS_DIR, key.replace(/[:\\/]/g, '_') + '.jsonl');
+}
+
+function loadSessionLinesFromDisk(key: string): { text: string; timestamp: number; guid?: string; type?: 'command' | 'output' }[] {
+  const file = keyToFilename(key);
+  if (!fs.existsSync(file)) return [];
+  const lines = fs.readFileSync(file, 'utf-8').split('\n').filter(Boolean).map(l => {
+    try { return JSON.parse(l); } catch { return null; }
+  }).filter(Boolean);
+  // Only keep the last N
+  return lines.slice(-SESSION_LINES_MAX);
+}
+
+function appendSessionLineToDisk(key: string, line: any) {
+  const file = keyToFilename(key);
+  fs.appendFileSync(file, JSON.stringify(line) + '\n');
+}
+
+function saveSessionLinesToDisk(key: string, lines: any[]) {
+  const file = keyToFilename(key);
+  fs.writeFileSync(file, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+}
+
+function renameSessionLogFile(oldKey: string, newKey: string) {
+  const oldFile = keyToFilename(oldKey);
+  const newFile = keyToFilename(newKey);
+  if (fs.existsSync(oldFile)) {
+    fs.renameSync(oldFile, newFile);
+  }
+}
+
+// API: Append a line to session lines for a server profile (from frontend)
+app.post('/api/session-lines/:key', express.json(), (req, res) => {
+  const key = req.params.key;
+  const { line } = req.body;
+  if (!line || typeof line.text !== 'string' || typeof line.timestamp !== 'number') {
+    return res.status(400).json({ error: 'Invalid line format' });
+  }
+  if (!sessionLines[key]) {
+    sessionLines[key] = loadSessionLinesFromDisk(key);
+  }
+  // Prevent duplicate lines (by guid+type+timestamp+text)
+  if (line.guid && sessionLines[key].some(l => l.guid === line.guid && l.type === line.type && l.timestamp === line.timestamp && l.text === line.text)) {
+    return res.json({ ok: true });
+  }
+  sessionLines[key].push(line);
+  if (sessionLines[key].length > SESSION_LINES_MAX) {
+    sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
+  }
+  appendSessionLineToDisk(key, line);
+  // Broadcast new line to all clients
+  broadcast('sessionLine', { key, line });
+  res.json({ ok: true });
+});
+
+// API: Clear session lines for a server profile
+app.delete('/api/session-lines/:key', (req, res) => {
+  const key = req.params.key;
+  sessionLines[key] = [];
+  saveSessionLinesToDisk(key, []);
+  res.json({ ok: true });
+});
+
+// API: Get last N session lines for a server profile
+app.get('/api/session-lines/:key', (req, res) => {
+  const key = req.params.key;
+  if (!sessionLines[key]) {
+    sessionLines[key] = loadSessionLinesFromDisk(key);
+  }
+  res.json({ lines: sessionLines[key] || [] });
+});
+
 
 // RCON Manager instance
 const rconManager = new RconManager();
@@ -80,10 +161,36 @@ function broadcast(type: string, payload: any) {
     }
   });
 }
+  // Listen for currentPlayers updates
+  const playersListener = (key: string, output: string) => {
+    const line: { text: string; timestamp: number; type: 'output' } = { text: output, timestamp: Date.now(), type: 'output' };
+    broadcast('currentPlayers', { key, line });
+  };
+  rconManager.on('currentPlayers', playersListener);
 
+  // Listen for chatMessage updates
+  const chatListener = (key: string, output: string) => {
+    // Store as a sessionLine with type 'output' (or 'chat' if you want to distinguish)
+    if (!sessionLines[key]) sessionLines[key] = [];
+    const line: { text: string; timestamp: number; type: 'output' } = { text: output, timestamp: Date.now(), type: 'output' };
+    sessionLines[key].push(line);
+    if (sessionLines[key].length > SESSION_LINES_MAX) {
+      sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
+    }
+    broadcast('sessionLine', { key, line });
+  };
+  rconManager.on('chatMessage', chatListener);
 // WebSocket: send status updates to clients
+// On WebSocket connection, send all session logs to the client
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
+  // Send all session logs (all keys)
+  // On connect, reload all session lines from disk for all known keys
+  const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':'));
+  for (const key of allKeys) {
+    if (!sessionLines[key]) sessionLines[key] = loadSessionLinesFromDisk(key);
+  }
+  ws.send(JSON.stringify({ type: 'sessionLines', data: sessionLines }));
   // Send current status
   ws.send(JSON.stringify({ type: 'status', data: rconManager.getStatus() }));
   // Listen for status changes
@@ -92,26 +199,44 @@ wss.on('connection', (ws) => {
   };
   rconManager.on('status', statusListener);
 
-  // Listen for currentPlayers updates
-  const playersListener = (key: string, output: string) => {
-    broadcast('currentPlayers', { key, output });
-  };
-  rconManager.on('currentPlayers', playersListener);
 
-  // Listen for chatMessage updates
-  const chatListener = (key: string, output: string) => {
-    broadcast('chatMessage', { key, output });
-  };
-  rconManager.on('chatMessage', chatListener);
 
 
   ws.on('message', async (data) => {
     try {
       const msg = JSON.parse(data.toString());
       if (msg.type === 'command' && msg.key && typeof msg.command === 'string') {
+        // Store the command line with guid/type if provided
+        const commandLine: any = {
+          text: '> ' + msg.command,
+          timestamp: Date.now(),
+          type: 'command',
+        };
+        if (msg.guid) commandLine.guid = msg.guid;
+        if (!sessionLines[msg.key]) sessionLines[msg.key] = [];
+        sessionLines[msg.key].push(commandLine);
+        if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
+          sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
+        }
+        broadcast('sessionLine', { key: msg.key, line: commandLine });
+
         // Use real RCON connection
         const output = await rconManager.sendCommand(msg.key, msg.command);
-        ws.send(JSON.stringify({ type: 'output', key: msg.key, output }));
+        // Send output with guid/type if guid was provided
+        if (typeof output === 'string' && output.trim()) {
+          const outputLine: any = {
+            text: output,
+            timestamp: Date.now(),
+            type: 'output',
+          };
+          if (msg.guid) outputLine.guid = msg.guid;
+          sessionLines[msg.key].push(outputLine);
+          if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
+            sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
+          }
+          broadcast('sessionLine', { key: msg.key, line: outputLine });
+        }
+        // (No need to send output event for legacy clients)
       } else if (msg.type === 'adminTask' && typeof msg.script === 'string') {
         // Execute admin task via socket server
         try {

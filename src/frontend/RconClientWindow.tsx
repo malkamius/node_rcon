@@ -20,6 +20,7 @@ export interface ServerProfile {
     currentPlayersWidth?: number;
   };
   directory?: string;
+  showTimestamps?: boolean; // Whether to show timestamps in terminal, default true
 }
 
 interface RconClientAppProps {
@@ -30,8 +31,9 @@ interface RconClientAppProps {
   onManageServers: () => void;
   terminalManager?: RconTerminalManager;
   sessionVersion?: number;
-  onSendCommand?: (key: string, command: string) => void;
+  onSendCommand?: (key: string, command: string, guid: string) => void;
   currentPlayers?: Record<string, { players: string[]; lastUpdate: number | null }>;
+  disabled?: boolean; // If true, disables input and send button
 }
 
 // If terminalManager/sessionVersion are not provided, create a local one (for backward compatibility/testing)
@@ -47,6 +49,7 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   sessionVersion = 0,
   onSendCommand,
   currentPlayers = {},
+  disabled = false,
 }) => {
   const [command, setCommand] = useState('');
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
@@ -54,11 +57,19 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   const [playersWidth, setPlayersWidth] = useState<number>(240);
   const [playersOpen, setPlayersOpen] = useState<boolean>(true);
   const [resizing, setResizing] = useState<boolean>(false);
+  const [showTimestamps, setShowTimestamps] = useState<boolean>(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const startX = useRef<number>(0);
   const startWidth = useRef<number>(240);
 
   const selectedProfile = selectedKey ? serverProfiles.find(p => `${p.host}:${p.port}` === selectedKey) : null;
+
+  // Set showTimestamps from profile (default true)
+  useEffect(() => {
+    if (selectedProfile) {
+      setShowTimestamps(selectedProfile.showTimestamps !== false);
+    }
+  }, [selectedProfile]);
   const session = selectedKey ? terminalManager.getSession(selectedKey) : null;
   const status = selectedKey ? statusMap[selectedKey] : undefined;
 
@@ -75,14 +86,24 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   }
 
 
+  // Generate a GUID (RFC4122 v4, simple)
+  function generateGuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
   // Handle command send
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedKey || !command.trim()) return;
+    const guid = generateGuid();
     if (onSendCommand) {
-      onSendCommand(selectedKey, command);
+      // Update: pass guid as third argument if supported
+      (onSendCommand as any)(selectedKey, command, guid);
     } else {
-      terminalManager.appendLine(selectedKey, '> ' + command);
+      terminalManager.appendLine(selectedKey, '> ' + command, undefined, true, guid, 'command');
     }
     setCommand('');
     setHistoryIndex(null);
@@ -167,11 +188,28 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
       <h2>RCON Terminal</h2>
       {selectedProfile ? (
         <>
-          <div style={{ marginBottom: 8, color: '#aaa' }}>
-            <b>Server:</b> {selectedProfile.name} ({selectedProfile.host}:{selectedProfile.port})
-            <span style={{ marginLeft: 16, color: status?.status === 'connected' ? '#6f6' : '#f66' }}>
-              {status?.status || 'disconnected'}
-            </span>
+          <div style={{ marginBottom: 8, color: '#aaa', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div>
+              <b>Server:</b> {selectedProfile.name} ({selectedProfile.host}:{selectedProfile.port})
+              <span style={{ marginLeft: 16, color: status?.status === 'connected' ? '#6f6' : '#f66' }}>
+                {status?.status || 'disconnected'}
+              </span>
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', fontSize: 14, color: '#ccc', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showTimestamps}
+                  onChange={e => {
+                    setShowTimestamps(e.target.checked);
+                    // Save to profile (in-memory only)
+                    if (selectedProfile) selectedProfile.showTimestamps = e.target.checked;
+                  }}
+                  style={{ marginRight: 4 }}
+                />
+                Show timestamps
+              </label>
+            </div>
           </div>
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row', position: 'relative' }}>
             {/* Player list panel */}
@@ -222,12 +260,14 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
             )}
             {/* Terminal area */}
             <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <TerminalArea
-                activeTab={selectedKey}
-                status={status}
-                session={session}
-                sessionVersion={sessionVersion}
-              />
+            <TerminalArea
+              activeTab={selectedKey}
+              status={status}
+              session={session}
+              sessionVersion={sessionVersion}
+              showTimestamps={showTimestamps}
+              loading={disabled}
+            />
               <form onSubmit={handleSend} style={{ display: 'flex', marginTop: 8 }}>
                 <input
                   ref={inputRef}
@@ -237,13 +277,13 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
                   onKeyDown={handleInputKeyDown}
                   placeholder="Enter RCON command..."
                   style={{ flex: 1, fontSize: 16, padding: 8, borderRadius: 4, border: '1px solid #444', background: '#23272e', color: '#eee' }}
-                  disabled={!selectedKey || status?.status !== 'connected'}
+                  disabled={disabled || !selectedKey || status?.status !== 'connected'}
                   autoComplete="off"
                 />
                 <button
                   type="submit"
                   style={{ marginLeft: 8, padding: '8px 18px', borderRadius: 4, border: '1px solid #444', background: '#23272e', color: '#eee', fontWeight: 600, cursor: 'pointer' }}
-                  disabled={!selectedKey || status?.status !== 'connected' || !command.trim()}
+                  disabled={disabled || !selectedKey || status?.status !== 'connected' || !command.trim()}
                 >Send</button>
               </form>
             </div>

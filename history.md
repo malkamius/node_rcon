@@ -1,4 +1,12 @@
+
 # RCON Manager Development History
+
+## 2025-06-28
+- Added persistent session line storage for each server profile (RCON session) in the backend, keeping the last 100 lines (configurable).
+- Each terminal line now includes a timestamp, which is stored and restored with the session.
+- Frontend sends each new line to the backend as it is added; on backend restart, the last lines are restored to the terminal with correct timestamps.
+- Added a per-profile toggle in the RCON client window to show/hide timestamps (default: on).
+- Refactored frontend and backend to support session line APIs (`/api/session-lines/:key` GET/POST/DELETE).
 
 ## 2025-06-19
 ### Server Configuration & INI Management
