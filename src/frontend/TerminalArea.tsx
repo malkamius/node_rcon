@@ -91,8 +91,11 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       const formatted = newLines.map((line: TerminalLine) => {
         if (showTimestamps && line.timestamp) {
           const date = new Date(line.timestamp);
-          const ts = date.toLocaleTimeString([], { hour12: false });
-          return `[${ts}] ${line.text}`;
+          // Format: DD/MM HH:MM:SS
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const time = date.toLocaleTimeString([], { hour12: false });
+          return `[${day}/${month} ${time}] ${line.text}`;
         } else {
           return line.text;
         }
