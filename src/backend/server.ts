@@ -268,8 +268,6 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     rconManager.off('status', statusListener);
-    rconManager.off('currentPlayers', playersListener);
-    rconManager.off('chatMessage', chatListener);
   });
 });
 

@@ -1,8 +1,8 @@
 
 import React, { useEffect, useRef } from 'react';
-import { Terminal } from 'xterm';
+import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import 'xterm/css/xterm.css';
+import '@xterm/xterm/css/xterm.css';
 import { TerminalSession, TerminalLine } from './rconTerminalManager';
 
 interface TerminalAreaProps {
@@ -18,7 +18,9 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
   const xtermContainerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const lastWrittenContent = useRef<string>('');
+  // Track how many lines have been written to the terminal for the current session
+  const writtenLineCount = useRef<number>(0);
+  const lastSessionKey = useRef<string | null>(null);
 
   // Initialize xterm.js terminal
   useEffect(() => {
@@ -58,42 +60,52 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
     const term = termRef.current;
     if (!term) return;
 
-    // Determine what content should be displayed
-    let newContent = '';
+    // If loading, show loading message and reset writtenLineCount
     if (loading) {
-      newContent = 'Loading history...';
-    } else if (session && session.lines.length > 0) {
-      if (typeof session.lines[0] === 'object' && 'text' in session.lines[0]) {
-        // TerminalLine[]
-        newContent = session.lines.map((line: TerminalLine) => {
-          if (showTimestamps && line.timestamp) {
-            const date = new Date(line.timestamp);
-            const ts = date.toLocaleTimeString([], { hour12: false });
-            return `[${ts}] ${line.text}`;
-          } else {
-            return line.text;
-          }
-        }).join('\r\n').replace(/\x1b\[2J/g, '');
-      } else {
-        // fallback for old string[]
-        newContent = (session.lines as any[]).join('\r\n').replace(/\x1b\[2J/g, '');
-      }
-    } else if (activeTab) {
-      newContent = '';
-    }
-
-    // Only update if content has changed
-    if (newContent !== lastWrittenContent.current) {
       term.clear();
       term.reset();
-      if (newContent) {
-        term.write(newContent);
-      }
-      lastWrittenContent.current = newContent;
+      term.write('Loading history...');
+      writtenLineCount.current = 0;
+      lastSessionKey.current = session?.key || null;
+      fitAddonRef.current?.fit();
+      return;
     }
 
+    // If session or tab changed, or sessionVersion changed, do a full clear and write all lines
+    const sessionKey = session?.key || null;
+    const lines = session && session.lines ? session.lines : [];
+    const isNewSession = lastSessionKey.current !== sessionKey;
+    const isCleared = writtenLineCount.current > lines.length;
+
+    // If "Loading history..." is present, clear it before writing new lines
+    // (xterm.js does not provide a way to read terminal contents, so we use writtenLineCount as a proxy)
+    if ((isNewSession || isCleared || writtenLineCount.current === 0) && !loading) {
+      term.clear();
+      term.reset();
+      writtenLineCount.current = 0;
+    }
+
+    // Write only new lines
+    if (lines.length > writtenLineCount.current) {
+      const newLines = lines.slice(writtenLineCount.current);
+      const formatted = newLines.map((line: TerminalLine) => {
+        if (showTimestamps && line.timestamp) {
+          const date = new Date(line.timestamp);
+          const ts = date.toLocaleTimeString([], { hour12: false });
+          return `[${ts}] ${line.text}`;
+        } else {
+          return line.text;
+        }
+      }).join('\r\n').replace(/\x1b\[2J/g, '');
+      if (formatted) {
+        term.write(formatted + '\r\n');
+      }
+      writtenLineCount.current = lines.length;
+    }
+
+    lastSessionKey.current = sessionKey;
     fitAddonRef.current?.fit();
-  }, [session, activeTab, sessionVersion, showTimestamps]);
+  }, [session, activeTab, sessionVersion, showTimestamps, loading]);
 
   return (
     <div style={{ flex: 1, background: '#181c20', position: 'relative', overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
