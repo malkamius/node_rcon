@@ -123,6 +123,10 @@ app.get('/api/session-lines/:key', (req, res) => {
 });
 
 
+
+// Track connected players per server key
+const connectedPlayers: Record<string, Set<string>> = {};
+
 // RCON Manager instance
 const rconManager = new RconManager();
 
@@ -162,7 +166,65 @@ function broadcast(type: string, payload: any) {
   });
 }
   // Listen for currentPlayers updates
+
+  // Listen for currentPlayers updates
   const playersListener = (key: string, output: string) => {
+    // output is expected to be a string with player names, one per line or comma separated
+    // Try to parse player names
+
+    let players: string[] = [];
+    if (output === null || output === undefined || output.trim() === 'No Players Connected' || output.trim() === 'No players online') {
+      players = [];
+    } else if (output.includes('\n')) {
+      players = output.split(/\r?\n/).map(p => p.trim()).filter(Boolean);
+    } else if (output.includes(',')) {
+      players = output.split(',').map(p => p.trim()).filter(Boolean);
+    } else if (output.trim()) {
+      players = [output.trim()];
+    }
+    // Remove player index (e.g., '0. ') from each player string
+    players = players.map(p => p.replace(/^\d+\.\s*/, ''));
+
+    if (!connectedPlayers[key]) connectedPlayers[key] = new Set();
+    const prevPlayers = new Set(connectedPlayers[key]);
+    const currentPlayers = new Set(players);
+
+    // Detect joins
+    for (const player of currentPlayers) {
+      if (!prevPlayers.has(player)) {
+        // Player joined
+        const msg = `PLAYER CONNECTED: ${player}`;
+        const line: { text: string; timestamp: number; type: 'output' } = { text: msg, timestamp: Date.now(), type: 'output' };
+        if (!sessionLines[key]) sessionLines[key] = [];
+      
+        sessionLines[key].push(line);
+        if (sessionLines[key].length > SESSION_LINES_MAX) {
+          sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
+        }
+        broadcast('sessionLine', { key, line });
+      }
+    }
+    // Detect leaves
+    for (const player of prevPlayers) {
+      if (!currentPlayers.has(player)) {
+        // Player left
+        const msg = `PLAYER DISCONNECTED: ${player}`;
+        const line: { text: string; timestamp: number; type: 'output' } = { text: msg, timestamp: Date.now(), type: 'output' };
+        if (!sessionLines[key]) sessionLines[key] = [];
+      
+        sessionLines[key].push(line);
+        if (sessionLines[key].length > SESSION_LINES_MAX) {
+          sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
+        }
+        saveSessionLinesToDisk(key, sessionLines[key]);
+          broadcast('sessionLine', { key, line });
+        }
+    }
+
+    // Update tracked players
+    connectedPlayers[key] = currentPlayers;
+
+    // Still broadcast the currentPlayers list as before
     const line: { text: string; timestamp: number; type: 'output' } = { text: output, timestamp: Date.now(), type: 'output' };
     broadcast('currentPlayers', { key, line });
   };
