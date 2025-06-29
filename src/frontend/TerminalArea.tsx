@@ -1,22 +1,26 @@
 
 import React, { useEffect, useRef } from 'react';
-import { Terminal } from 'xterm';
+import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import 'xterm/css/xterm.css';
-import { TerminalSession } from './rconTerminalManager';
+import '@xterm/xterm/css/xterm.css';
+import { TerminalSession, TerminalLine } from './rconTerminalManager';
 
 interface TerminalAreaProps {
   activeTab: string | null;
   status?: { status: string; since: number };
   session: TerminalSession | null;
   sessionVersion?: number;
+  showTimestamps?: boolean;
+  loading?: boolean;
 }
 
-export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, session, sessionVersion }) => {
+export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, session, sessionVersion, showTimestamps = true, loading }) => {
   const xtermContainerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const lastWrittenContent = useRef<string>('');
+  // Track how many lines have been written to the terminal for the current session
+  const writtenLineCount = useRef<number>(0);
+  const lastSessionKey = useRef<string | null>(null);
 
   // Initialize xterm.js terminal
   useEffect(() => {
@@ -55,27 +59,56 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
-    
-    // Determine what content should be displayed
-    let newContent = '';
-    if (session && session.lines.length > 0) {
-      newContent = session.lines.join('\r\n').replace(/\x1b\[2J/g, '');
-    } else if (activeTab) {
-      newContent = 'No output yet.';
-    }
-    
-    // Only update if content has changed
-    if (newContent !== lastWrittenContent.current) {
+
+    // If loading, show loading message and reset writtenLineCount
+    if (loading) {
       term.clear();
       term.reset();
-      if (newContent) {
-        term.write(newContent);
-      }
-      lastWrittenContent.current = newContent;
+      term.write('Loading history...');
+      writtenLineCount.current = 0;
+      lastSessionKey.current = session?.key || null;
+      fitAddonRef.current?.fit();
+      return;
     }
-    
+
+    // If session or tab changed, or sessionVersion changed, do a full clear and write all lines
+    const sessionKey = session?.key || null;
+    const lines = session && session.lines ? session.lines : [];
+    const isNewSession = lastSessionKey.current !== sessionKey;
+    const isCleared = writtenLineCount.current > lines.length;
+
+    // If "Loading history..." is present, clear it before writing new lines
+    // (xterm.js does not provide a way to read terminal contents, so we use writtenLineCount as a proxy)
+    if ((isNewSession || isCleared || writtenLineCount.current === 0) && !loading) {
+      term.clear();
+      term.reset();
+      writtenLineCount.current = 0;
+    }
+
+    // Write only new lines
+    if (lines.length > writtenLineCount.current) {
+      const newLines = lines.slice(writtenLineCount.current);
+      const formatted = newLines.map((line: TerminalLine) => {
+        if (showTimestamps && line.timestamp) {
+          const date = new Date(line.timestamp);
+          // Format: DD/MM HH:MM:SS
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const time = date.toLocaleTimeString([], { hour12: false });
+          return `[${day}/${month} ${time}] ${line.text}`;
+        } else {
+          return line.text;
+        }
+      }).join('\r\n').replace(/\x1b\[2J/g, '');
+      if (formatted) {
+        term.write(formatted + '\r\n');
+      }
+      writtenLineCount.current = lines.length;
+    }
+
+    lastSessionKey.current = sessionKey;
     fitAddonRef.current?.fit();
-  }, [session, activeTab, sessionVersion]);
+  }, [session, activeTab, sessionVersion, showTimestamps, loading]);
 
   return (
     <div style={{ flex: 1, background: '#181c20', position: 'relative', overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
@@ -83,6 +116,11 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       {!activeTab && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
           Select a server tab to start a session.
+        </div>
+      )}
+      {loading && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', background: 'rgba(24,28,32,0.85)', zIndex: 10 }}>
+          Loading history...
         </div>
       )}
       {activeTab && status && (

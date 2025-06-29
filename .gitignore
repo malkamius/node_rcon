@@ -44,3 +44,5 @@ config.json
 .github/
 package-lock.json
 log.txt
+
+logs/*.jsonl
