@@ -14,7 +14,8 @@ interface ServerProfile {
 
 interface ServerConfigTabProps {
   serverProfiles: ServerProfile[];
-  statusMap: Record<string, { status: string; since: number }>;
+  // statusMap: key -> { running, startTime, manuallyStopped, autoStart, baseInstallId }
+  statusMap: Record<string, any>;
   selectedKey: string | null;
   onTabSelect: (key: string) => void;
   onManageServers: () => void;
@@ -29,7 +30,18 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps> = ({ serverProfiles
   const [settingsTemplate, setSettingsTemplate] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [profiles, setProfiles] = useState(serverProfiles);
+  const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  // Helper to show a message for a short time
+  const showMsg = (type: 'success' | 'error', text: string) => {
+    setActionMsg({ type, text });
+    setTimeout(() => setActionMsg(null), 2500);
+  };
   const selectedProfile = selectedKey ? profiles.find(p => `${p.host}:${p.port}` === selectedKey) : null;
+  const procStatus = selectedKey ? statusMap[selectedKey] : undefined;
+  const running = !!procStatus?.running;
+  const manuallyStopped = !!procStatus?.manuallyStopped;
+  const autoStart = !!procStatus?.autoStart;
+  const startTime = procStatus?.startTime;
 
   // Load settings template on mount
   useEffect(() => {
@@ -214,6 +226,72 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps> = ({ serverProfiles
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
       <h2>Server Configuration</h2>
+      {selectedProfile && (
+        <div style={{ marginBottom: 8, color: running ? '#6f6' : manuallyStopped ? '#fa0' : '#f66', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span>
+            Status: {running ? 'Running' : (manuallyStopped ? 'Stopped (Manual)' : 'Stopped')}
+            <span style={{ marginLeft: 12, fontSize: '0.95em', color: '#aaa' }}>
+              {running && startTime ? `Started at ${new Date(startTime).toLocaleTimeString()}` :
+                !running && manuallyStopped ? 'Stopped manually' :
+                !running && autoStart ? 'Auto-start enabled' :
+                !running ? 'Not running' : ''}
+            </span>
+          </span>
+          {/* Start/Stop Controls */}
+          <button
+            disabled={running || !selectedProfile}
+            style={{ background: running ? '#444' : '#2d4', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 16px', fontWeight: 600, cursor: running ? 'not-allowed' : 'pointer' }}
+            onClick={async () => {
+              if (!selectedProfile) return;
+              const key = `${selectedProfile.host}:${selectedProfile.port}`;
+              try {
+                const res = await fetch(`/api/start-server/${encodeURIComponent(key)}`, { method: 'POST' });
+                if (!res.ok) {
+                  let msg = 'Failed to start server';
+                  try {
+                    const data = await res.json();
+                    if (data && data.error) msg = data.error;
+                  } catch {}
+                  showMsg('error', msg);
+                  return;
+                }
+                showMsg('success', 'Started');
+              } catch (e: any) {
+                showMsg('error', e?.message || 'Failed to start');
+              }
+            }}
+          >Start</button>
+          <button
+            disabled={!running || !selectedProfile}
+            style={{ background: !running ? '#444' : '#d44', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 16px', fontWeight: 600, cursor: !running ? 'not-allowed' : 'pointer' }}
+            onClick={async () => {
+              if (!selectedProfile) return;
+              const key = `${selectedProfile.host}:${selectedProfile.port}`;
+              try {
+                const res = await fetch(`/api/stop-server/${encodeURIComponent(key)}`, { method: 'POST' });
+                if (!res.ok) {
+                  let msg = 'Failed to stop server';
+                  try {
+                    const data = await res.json();
+                    if (data && data.error) msg = data.error;
+                  } catch {}
+                  showMsg('error', msg);
+                  return;
+                }
+                showMsg('success', 'Stopped');
+              } catch (e: any) {
+                showMsg('error', e?.message || 'Failed to stop');
+              }
+            }}
+          >Stop</button>
+          {/* Inline feedback message */}
+          {actionMsg && (
+            <span style={{ marginLeft: 8, color: actionMsg.type === 'success' ? '#6f6' : '#f66', fontWeight: 600, fontSize: 14 }}>
+              {actionMsg.text}
+            </span>
+          )}
+        </div>
+      )}
       {error && (
         <div style={{ background: '#ffdddd', color: '#a00', padding: '8px 16px', textAlign: 'center', fontWeight: 600, border: '1px solid #a00', borderRadius: 4, marginBottom: 16 }}>
           {error}

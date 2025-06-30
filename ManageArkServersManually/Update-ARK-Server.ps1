@@ -92,10 +92,11 @@ try {
     # Check last exit code (optional, SteamCMD output is usually enough)
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "SteamCMD process completed with exit code $LASTEXITCODE. Review SteamCMD output above for errors."
-    }
-
-    Write-Host "`nSUCCESS: ARK: Survival Ascended Dedicated Server download/update process complete."
-    Write-Host "Server files are located in: $ServerInstallDirectory"
+		exit $LASTEXITCODE
+    } else {
+		Write-Host "`nSUCCESS: ARK: Survival Ascended Dedicated Server download/update process complete."
+		Write-Host "Server files are located in: $ServerInstallDirectory"
+	}
 
 } catch {
     Write-Error "An unexpected error occurred during the SteamCMD update process: $($_.Exception.Message)"

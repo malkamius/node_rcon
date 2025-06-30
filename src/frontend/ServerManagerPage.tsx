@@ -1,11 +1,14 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { fetchProcessStatus } from './processStatusApi';
 import { TabManager } from './TabManager';
 import { RconClientWindow } from './RconClientWindow';
 import { ServerConfigTab } from './ServerConfigTab';
 import { ServerManagementModal } from './ServerManagementModal';
 import { DisconnectedModal } from './DisconnectedModal';
 import { RconTerminalManager } from './rconTerminalManager';
+
+import { BaseInstallManager } from './BaseInstallManager';
 
 interface ServerProfile {
   name: string;
@@ -18,13 +21,39 @@ interface ServerProfile {
   directory?: string;
 }
 
-type ActivityTab = 'rcon' | 'config';
+type ActivityTab = 'rcon' | 'config' | 'baseinstalls';
 
 const terminalManager = new RconTerminalManager();
 
 export const ServerManagerPage: React.FC = () => {
   const [serverProfiles, setServerProfiles] = useState<ServerProfile[]>([]);
-  const [statusMap, setStatusMap] = useState<Record<string, { status: string; since: number }> >({});
+  // statusMap: key -> { running, startTime, manuallyStopped, autoStart, baseInstallId }
+  const [statusMap, setStatusMap] = useState<Record<string, any>>({});
+  // rconStatusMap: key -> { status: 'connected' | 'connecting' | 'disconnected', since: number }
+  const [rconStatusMap, setRconStatusMap] = useState<Record<string, any>>({});
+  // Fetch process status from backend
+  const loadProcessStatus = useCallback(async () => {
+    try {
+      const data = await fetchProcessStatus();
+      if (data && Array.isArray(data.status)) {
+        // Map: key -> status object
+        const map: Record<string, any> = {};
+        for (const s of data.status) {
+          map[s.key] = s;
+        }
+        setStatusMap(map);
+      }
+    } catch (e) {
+      // Optionally handle error
+    }
+  }, []);
+
+  // Poll process status every 10s
+  useEffect(() => {
+    loadProcessStatus();
+    const interval = setInterval(loadProcessStatus, 10000);
+    return () => clearInterval(interval);
+  }, [loadProcessStatus]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const selectedKeyRef = useRef<string | null>(null);
   const [activity, setActivity] = useState<ActivityTab>('rcon');
@@ -108,7 +137,7 @@ export const ServerManagerPage: React.FC = () => {
           session.lines = [];
           setSessionVersion((v) => v + 1);
         } else if (msg.type === 'status') {
-          setStatusMap((prev) => {
+          setRconStatusMap((prev) => {
             const statusMap = { ...prev };
             for (const s of msg.data) {
               statusMap[s.key] = { status: s.status, since: s.since };
@@ -268,6 +297,19 @@ export const ServerManagerPage: React.FC = () => {
             }}
             onClick={() => handleActivitySwitch('config')}
           >Config</button>
+          <button
+            style={{
+              background: activity === 'baseinstalls' ? '#444' : 'transparent',
+              color: '#fff',
+              border: 'none',
+              borderBottom: activity === 'baseinstalls' ? '2px solid #fff' : '2px solid transparent',
+              fontWeight: activity === 'baseinstalls' ? 'bold' : 'normal',
+              fontSize: '1em',
+              padding: '0.5em 1em',
+              cursor: 'pointer',
+            }}
+            onClick={() => handleActivitySwitch('baseinstalls')}
+          >Base Installs</button>
         </div>
         <span style={{ flex: 1 }} />
         <button style={{ marginRight: '1em' }} onClick={handleManageServers}>Manage Servers</button>
@@ -296,6 +338,7 @@ export const ServerManagerPage: React.FC = () => {
             <TabManager
               serverProfiles={serverProfiles}
               statusMap={statusMap}
+              rconStatusMap={rconStatusMap}
               onTabSelect={handleTabSelect}
               activeTab={selectedKey}
             />
@@ -312,6 +355,7 @@ export const ServerManagerPage: React.FC = () => {
             <RconClientWindow
               serverProfiles={serverProfiles}
               statusMap={statusMap}
+              rconStatusMap={rconStatusMap}
               selectedKey={selectedKey}
               onTabSelect={handleTabSelect}
               onManageServers={handleManageServers}
@@ -328,6 +372,8 @@ export const ServerManagerPage: React.FC = () => {
               onTabSelect={handleTabSelect}
               onManageServers={handleManageServers}
             />
+          ) : activity === 'baseinstalls' ? (
+            <BaseInstallManager />
           ) : null}
         </div>
       </div>

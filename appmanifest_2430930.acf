@@ -1,0 +1,44 @@
+"AppState"
+{
+	"appid"		"2430930"
+	"Universe"		"1"
+	"LauncherPath"		"G:\\steamcmd\\steamcmd.exe"
+	"name"		"ARK: Survival Ascended Dedicated Server"
+	"StateFlags"		"4"
+	"installdir"		"ARK Survival Ascended Dedicated Server"
+	"LastUpdated"		"1751214642"
+	"LastPlayed"		"0"
+	"SizeOnDisk"		"11720886533"
+	"StagingSize"		"0"
+	"buildid"		"19015975"
+	"LastOwner"		"0"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"8202806640"
+	"BytesDownloaded"		"8202806640"
+	"BytesToStage"		"11674159405"
+	"BytesStaged"		"11674159405"
+	"TargetBuildID"		"19015975"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"1004"
+		{
+			"manifest"		"7747775778018907449"
+			"size"		"46727128"
+		}
+		"2430931"
+		{
+			"manifest"		"3352823605316052471"
+			"size"		"11674159405"
+		}
+	}
+	"UserConfig"
+	{
+	}
+	"MountedConfig"
+	{
+	}
+}

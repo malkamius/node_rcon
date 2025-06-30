@@ -5,7 +5,8 @@ import { getProfiles } from './profiles';
 import { Rcon } from 'rcon-client';
 
 
-interface ServerProfile {
+
+export interface ServerProfile {
   name: string;
   host: string;
   port: number;
@@ -21,6 +22,18 @@ interface ServerProfile {
     sidebarWidth?: number;
     currentPlayersWidth?: number;
   };
+  directory?: string;
+  autoStart?: boolean;
+  manuallyStopped?: boolean;
+  baseInstallId?: string;
+}
+
+export interface BaseInstallProfile {
+  id: string;
+  path: string;
+  version: string;
+  lastUpdated: Date;
+  // Add any additional metadata as needed
 }
 
 interface ConnectionState {

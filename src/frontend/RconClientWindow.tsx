@@ -25,7 +25,10 @@ export interface ServerProfile {
 
 interface RconClientAppProps {
   serverProfiles: ServerProfile[];
-  statusMap: Record<string, { status: string; since: number }>;
+  // statusMap: key -> { running, startTime, manuallyStopped, autoStart, baseInstallId }
+  statusMap: Record<string, any>;
+  // rconStatusMap: key -> { status: 'connected' | 'connecting' | 'disconnected', since: number }
+  rconStatusMap?: Record<string, { status: string; since: number }>;
   selectedKey: string | null;
   onTabSelect: (key: string) => void;
   onManageServers: () => void;
@@ -42,6 +45,7 @@ const defaultTerminalManager = new RconTerminalManager();
 export const RconClientWindow: React.FC<RconClientAppProps> = ({
   serverProfiles,
   statusMap,
+  rconStatusMap = {},
   selectedKey,
   onTabSelect,
   onManageServers,
@@ -94,7 +98,15 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
     wsRef.current.send(JSON.stringify({ type: 'clearSessionLines', key: selectedKey }));
   };
   const session = selectedKey ? terminalManager.getSession(selectedKey) : null;
-  const status = selectedKey ? statusMap[selectedKey] : undefined;
+  const procStatus = selectedKey ? statusMap[selectedKey] : undefined;
+  const running = !!procStatus?.running;
+  const manuallyStopped = !!procStatus?.manuallyStopped;
+  const autoStart = procStatus?.autoStart;
+  const startTime = procStatus?.startTime;
+
+  // RCON connection status
+  const rconStatus = selectedKey && rconStatusMap[selectedKey]?.status ? rconStatusMap[selectedKey].status : 'disconnected';
+  const rconConnected = rconStatus === 'connected';
 
   // Player list logic
   let showPlayers = false;
@@ -214,8 +226,14 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
           <div style={{ marginBottom: 8, color: '#aaa', display: 'flex', alignItems: 'center', gap: 16 }}>
             <div>
               <b>Server:</b> {selectedProfile.name} ({selectedProfile.host}:{selectedProfile.port})
-              <span style={{ marginLeft: 16, color: status?.status === 'connected' ? '#6f6' : '#f66' }}>
-                {status?.status || 'disconnected'}
+              <span style={{ marginLeft: 16, color: running ? '#6f6' : manuallyStopped ? '#fa0' : '#f66' }}>
+                {running ? 'Running' : (manuallyStopped ? 'Stopped (Manual)' : 'Stopped')}
+              </span>
+              <span style={{ marginLeft: 12, fontSize: '0.9em', color: '#aaa' }}>
+                {running && startTime ? `Started at ${new Date(startTime).toLocaleTimeString()}` :
+                  !running && manuallyStopped ? 'Stopped manually' :
+                  !running && autoStart ? 'Auto-start enabled' :
+                  !running ? 'Not running' : ''}
               </span>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -291,7 +309,8 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
             <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <TerminalArea
               activeTab={selectedKey}
-              status={status}
+              // Pass RCON connection status for display
+              status={selectedKey && rconStatusMap[selectedKey] ? rconStatusMap[selectedKey] : { status: 'disconnected', since: Date.now() }}
               session={session}
               sessionVersion={sessionVersion}
               showTimestamps={showTimestamps}
@@ -306,13 +325,13 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
                   onKeyDown={handleInputKeyDown}
                   placeholder="Enter RCON command..."
                   style={{ flex: 1, fontSize: 16, padding: 8, borderRadius: 4, border: '1px solid #444', background: '#23272e', color: '#eee' }}
-                  disabled={disabled || !selectedKey || status?.status !== 'connected'}
+                  disabled={disabled || !selectedKey || !rconConnected}
                   autoComplete="off"
                 />
                 <button
                   type="submit"
                   style={{ marginLeft: 8, padding: '8px 18px', borderRadius: 4, border: '1px solid #444', background: '#23272e', color: '#eee', fontWeight: 600, cursor: 'pointer' }}
-                  disabled={disabled || !selectedKey || status?.status !== 'connected' || !command.trim()}
+                  disabled={disabled || !selectedKey || !rconConnected || !command.trim()}
                 >Send</button>
               </form>
             </div>
