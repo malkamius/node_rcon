@@ -40,18 +40,17 @@ export abstract class ProcessManager extends EventEmitter {
         const found = runningProcs.find(p => p.exe && p.exe.toLowerCase() === exePath.toLowerCase());
         if (found) {
         // Attach to running process (best effort, can't get start time reliably)
-            this.processes[profile.key] = { process: null, startTime: Date.now() };
+            this.processes[profile.key] = { process: null, startTime: found.startTime?.getTime() || Date.now() };
             this.emit('status', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
-            return { running: true, startTime: this.processes[profile.key].startTime };
+            //return { running: true, startTime: this.processes[profile.key].startTime };
         }
-      if (profile.autoStart && (profile.manuallyStopped === undefined || !profile.manuallyStopped)) {
-        this.start(profile);
-      }
+        else if (profile.autoStart && (profile.manuallyStopped === undefined || !profile.manuallyStopped)) {
+          this.start(profile);
+        }
     }
   }
 }
 
-// Example: Ark Survival Ascended Process Manager
 export class ArkSAProcessManager extends ProcessManager {
   async start(profile: ServerProcessProfile): Promise<ProcessStatus> {
     if (!profile.directory) return { running: false, error: 'No directory set' };
@@ -64,7 +63,7 @@ export class ArkSAProcessManager extends ProcessManager {
     const found = runningProcs.find(p => p.exe && p.exe.toLowerCase() === exePath.toLowerCase());
     if (found) {
       // Attach to running process (best effort, can't get start time reliably)
-      this.processes[profile.key] = { process: null, startTime: Date.now() };
+      this.processes[profile.key] = { process: null, startTime: found.startTime?.getTime() || Date.now() };
       this.emit('status', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
       return { running: true, startTime: this.processes[profile.key].startTime };
     }
@@ -73,7 +72,7 @@ export class ArkSAProcessManager extends ProcessManager {
       cwd: profile.directory,
       detached: true,
       stdio: 'ignore',
-      //windowsHide: true,
+      windowsHide: true,
     });
     this.processes[profile.key] = { process: child, startTime: Date.now() };
     child.unref();
