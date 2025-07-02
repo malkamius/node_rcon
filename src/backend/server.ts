@@ -20,6 +20,7 @@ import iniApi from './iniApi';
 import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
 import { ensureSocketServer, sendAdminSocketCommand } from './adminSocketClient';
 import { exit } from 'process';
+import { exec } from 'child_process';
 
 const configPath = path.join(__dirname, '../../config.json');
 const defaultConfig = {
@@ -51,8 +52,56 @@ function auditLog(event: string, details: any) {
   require('fs').appendFileSync(AUDIT_LOG_PATH, JSON.stringify(entry) + '\n');
 }
 
+
+export function getBaseInstall(InstancePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const PathTocheck = InstancePath + "\\steamapps";
+    // Use single quotes for -Command and escape inner quotes for -Path
+    const powershellCommand = `.\\Get-DirectoryPath.ps1 -Path '${PathTocheck}'`;
+
+    exec(
+      `powershell.exe -NoProfile -Command "${powershellCommand}"`,
+      { windowsHide: false, maxBuffer: 1024 * 1024 * 10 },
+      (err, stdout, stderr) => {
+        if (err) {
+          console.error('Error executing PowerShell command:', err);
+          if (stderr) console.error('PowerShell Stderr:', stderr);
+          return reject(err);
+        }
+        // Sometimes PowerShell outputs to stderr even on success
+        const output = (stdout && stdout.trim()) || (stderr && stderr.trim());
+        if (!output) {
+          return reject(new Error('No output from PowerShell script'));
+        }
+        resolve(path.dirname(output));
+      }
+    );
+  });
+}
+
+async function getBaseInstallsFromProfiles() {
+  const profiles = getProfiles();
+  if(!config.baseInstalls) config.baseInstalls = [];
+  for (const profile of profiles) {
+    if (profile.game === 'ark_sa' && profile.directory) {
+      await getBaseInstall(profile.directory).then(path => {
+        if(!config.baseInstalls.some((b: any) => b.path === path)) {
+          config.baseInstalls.push({ id: path, path: path, version: null, lastUpdated: null, updateAvailable: false, latestBuildId: null });
+        }
+      });
+    }
+  }
+}
+
+(async () => {
+  await getBaseInstallsFromProfiles().catch(err => {
+    console.error('Error getting base installs from profiles:', err);
+  });
+})();
+
 // --- Process Manager Abstraction ---
 const processManager = new ArkSAProcessManager();
+
 
 // Manual Stop Tracking for Ark: Survival Ascended servers
 function setServerManuallyStopped(key: string, stopped: boolean) {
@@ -84,8 +133,6 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Expose processManager for use in other modules (e.g., script engine)
 export { processManager };
-
-
 
 // --- Periodic Base Install Update Check ---
 const STEAMCMD_API_URL = 'https://api.steamcmd.net/v1/info/2430930';
@@ -137,8 +184,6 @@ function startBaseInstallUpdateInterval() {
   setInterval(checkBaseInstallUpdates, config.baseInstallUpdateCheckInterval || 600000);
   checkBaseInstallUpdates();
 }
-
-// ...existing code...
 
 // At the end of config declaration, start the interval (but not in test mode)
 if (process.env.NODE_ENV !== 'test') {
