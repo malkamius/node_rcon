@@ -32,6 +32,7 @@ export abstract class ProcessManager extends EventEmitter {
 
   // Optionally override for auto-start logic
   async autoStart(profiles: ServerProcessProfile[]) {
+    const portscanner = require('portscanner');
     for (const profile of profiles) {
          const pathMod = require('path');
         const fsMod = require('fs');
@@ -45,7 +46,25 @@ export abstract class ProcessManager extends EventEmitter {
             //return { running: true, startTime: this.processes[profile.key].startTime };
         }
         else if (profile.autoStart && (profile.manuallyStopped === undefined || !profile.manuallyStopped)) {
-          this.start(profile);
+          const portToCheck = profile.port;
+          if(portToCheck && portToCheck > 0 && portToCheck < 65536) {
+            portscanner.checkPortStatus(portToCheck, '127.0.0.1', (error : string | null | undefined, status : string | null | undefined) => {
+              if (error) {
+                  console.error('Error checking port:', error);
+                  return;
+              }
+              if (status === 'open') {
+                  console.log(`Port ${portToCheck} is open (in use).`);
+              } else {
+                  console.log(`Port ${portToCheck} is closed (free).`);
+                  this.start(profile);
+              }
+            });
+          }
+          else
+          {
+            this.start(profile);
+          }
         }
     }
   }
