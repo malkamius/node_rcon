@@ -86,14 +86,14 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
   };
 
   // Update
-  const handleUpdateSelected = () => {
-    const bi = baseInstalls.find(b => b.id === selectedId);
-    if (bi) {
-      setForm({ ...bi });
-      setFormError(null);
-      setShowUpdate(true);
-    }
-  };
+  // const handleUpdateSelected = () => {
+  //   const bi = baseInstalls.find(b => b.id === selectedId);
+  //   if (bi) {
+  //     setForm({ ...bi });
+  //     setFormError(null);
+  //     setShowUpdate(true);
+  //   }
+  // };
   const handleUpdateSubmit = async () => {
     setFormError(null);
     if (!form.path) {
@@ -151,7 +151,7 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
       {/* Controls: Add, Update, Remove */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
         <button onClick={handleAdd} disabled={actionLoading}>Add Base Install</button>
-  <button onClick={handleUpdateSelected} disabled={!selectedId || actionLoading}>Update Selected</button>
+        {/* <button onClick={handleUpdateSelected} disabled={!selectedId || actionLoading}>Update Selected</button> */}
         <button onClick={handleRemove} disabled={!selectedId || actionLoading}>Remove Selected</button>
       </div>
       {/* Flexbox-based header and rows */}
@@ -206,7 +206,7 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
                   }}
                   title="Update base install"
                 >
-                  Update Available
+                  Yes
                 </button>
               ) : 'No'}
             </div>
