@@ -1,3 +1,4 @@
+import { on } from 'events';
 import React, { useState } from 'react';
 
 interface TabManagerProps {
@@ -7,9 +8,11 @@ interface TabManagerProps {
   rconStatusMap: Record<string, any>;
   onTabSelect: (key: string) => void;
   activeTab: string | null;
+  onHandleSendServerShutdown: (keys: string[]) => void;
+  onHandleSendForceStart: (keys: string[]) => void;
 }
 
-export const TabManager: React.FC<TabManagerProps> = ({ serverProfiles, statusMap, rconStatusMap, onTabSelect, activeTab }) => {
+export const TabManager: React.FC<TabManagerProps> = ({ serverProfiles, statusMap, rconStatusMap, onTabSelect, activeTab, onHandleSendServerShutdown, onHandleSendForceStart }) => {
   const [actionMsg, setActionMsg] = useState<Record<string, { type: 'success' | 'error'; text: string }>>({});
   // Helper to show a message for a key
   const showMsg = (key: string, type: 'success' | 'error', text: string) => {
@@ -62,17 +65,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ serverProfiles, statusMa
               onClick={async (e) => {
                 e.stopPropagation();
                 try {
-                  const res = await fetch(`/api/start-server/${encodeURIComponent(key)}`, { method: 'POST' });
-                  if (!res.ok) {
-                    let msg = 'Failed to start server';
-                    try {
-                      const data = await res.json();
-                      if (data && data.error) msg = data.error;
-                    } catch {}
-                    showMsg(key, 'error', msg);
-                    return;
-                  }
-                  showMsg(key, 'success', 'Started');
+                  onHandleSendForceStart([key]);
                 } catch (e: any) {
                   showMsg(key, 'error', e?.message || 'Failed to start');
                 }
@@ -85,17 +78,7 @@ export const TabManager: React.FC<TabManagerProps> = ({ serverProfiles, statusMa
               onClick={async (e) => {
                 e.stopPropagation();
                 try {
-                  const res = await fetch(`/api/stop-server/${encodeURIComponent(key)}`, { method: 'POST' });
-                  if (!res.ok) {
-                    let msg = 'Failed to stop server';
-                    try {
-                      const data = await res.json();
-                      if (data && data.error) msg = data.error;
-                    } catch {}
-                    showMsg(key, 'error', msg);
-                    return;
-                  }
-                  showMsg(key, 'success', 'Stopped');
+                  onHandleSendServerShutdown([key]);
                 } catch (e: any) {
                   showMsg(key, 'error', e?.message || 'Failed to stop');
                 }

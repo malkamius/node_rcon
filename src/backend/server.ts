@@ -670,6 +670,44 @@ wss.on('connection', (ws) => {
         } catch (err) {
           ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, error: String(err) }));
         }
+      } else if (msg.type === 'shutdownserver' && msg.keys) {
+        // Handle server shutdown
+        const keys = msg.keys;
+        const profiles = getProfiles();
+        const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
+        if (affectedProfiles.length > 0) {
+          affectedProfiles.forEach((profile : any) => {
+            profile.manuallyStopped = true;
+          });
+          saveProfiles(profiles);
+          affectedProfiles.forEach((profile : any) => {
+            setServerManuallyStopped(`${profile.host}:${profile.port}`, true);
+            // Stop the process
+            processManager.stopProcess(`${profile.host}:${profile.port}`);
+          });
+          ws.send(JSON.stringify({ type: 'shutdownserverHandled', keys }));
+        } else {
+          ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
+        }
+      } else if (msg.type === 'startserver' && msg.keys) {
+        // Handle server force start
+        const keys = msg.keys;
+        const profiles = getProfiles();
+        const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
+        if (affectedProfiles.length > 0) {
+          affectedProfiles.forEach((profile : any) => {
+            profile.manuallyStopped = false;
+          });
+          saveProfiles(profiles);
+          affectedProfiles.forEach((profile : any) => {
+            setServerManuallyStopped(`${profile.host}:${profile.port}`, false);
+            // Start the process
+            processManager.start(profile);
+          });
+          ws.send(JSON.stringify({ type: 'startserverHandled', keys }));
+        } else {
+          ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
+        }
       }
     } catch {}
   });

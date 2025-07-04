@@ -201,6 +201,25 @@ export const ServerManagerPage: React.FC = () => {
     setSessionVersion((v) => v + 1);
   };
 
+  const handleSendShutdown = (keys: string[]) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+    {
+      setError('WebSocket is not connected');
+      return;
+    }
+    wsRef.current.send(JSON.stringify({ type: 'shutdownserver', keys }));
+  };
+
+  
+  const handleSendForceStart = (keys: string[]) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+    {
+      setError('WebSocket is not connected');
+      return;
+    }
+    wsRef.current.send(JSON.stringify({ type: 'startserver', keys }));
+  };
+
   // Server management modal
   const handleManageServers = () => setShowServerModal(true);
   const handleCloseServerModal = () => {
@@ -344,6 +363,8 @@ export const ServerManagerPage: React.FC = () => {
               rconStatusMap={rconStatusMap}
               onTabSelect={handleTabSelect}
               activeTab={selectedKey}
+              onHandleSendServerShutdown={handleSendShutdown}
+              onHandleSendForceStart={handleSendForceStart}
             />
           </div>
           {/* Sidebar resize handle */}
