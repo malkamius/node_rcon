@@ -144,6 +144,9 @@ export const ServerManagerPage: React.FC = () => {
             }
             return statusMap;
           });
+        } else if (msg.type === 'processStatus' && msg.key && msg.status) {
+          // Real-time process status update from backend
+          setStatusMap((prev) => ({ ...prev, [msg.key]: { ...prev[msg.key], ...msg.status } }));
         } else if (msg.type === 'output' && msg.key && typeof msg.output === 'string') {
           terminalManager.appendLine(msg.key, msg.output.replace(/\r?\n/g, '\r\n'), undefined, false);
           setSessionVersion((v) => v + 1);

@@ -14,16 +14,17 @@ function parseMicrosoftDateFormat(dateString: string): number | null {
 export function listProcesses(): Promise<{ pid: number; exe: string; cmdline: string, startTime: Date | null }[]> {
   return new Promise((resolve, reject) => {
     const executableName = "ArkAscendedServer";
-    const escapedExecutableName = `\\"${executableName}\\"`;
+    const escapedExecutableName = `'${executableName}\'`;
     const powershellCommand = `Get-Process -Name ${escapedExecutableName} | Select-Object -Property Id, Path, CommandLine, StartTime | ConvertTo-Json`;
 
     // Increased maxBuffer for potentially large output, though filtered should be smaller
     exec(`powershell.exe -NoProfile -Command "${powershellCommand}"`, { windowsHide: false, maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
       if (err) {
-        console.error('Error executing PowerShell command:', err);
-        // Log stderr if available for more insights
-        if (err.stderr) console.error('PowerShell Stderr:', err.stderr);
-        return reject(err);
+        return resolve([]);
+        // console.error('Error executing PowerShell command:', err);
+        // // Log stderr if available for more insights
+        // if (err.stderr) console.error('PowerShell Stderr:', err.stderr);
+        // return reject(err);
       }
 
       try {

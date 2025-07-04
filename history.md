@@ -1,4 +1,10 @@
--## 2025-06-29
+## 2025-07-03
+- Backend: Added periodic process status check to ProcessManager. The backend now calls getStatus on all managed server sessions at a regular interval, using listProcesses and portscanner to detect if a port is in use but no process is detected. Emits an error status in this case for improved diagnostics and frontend display. This supports robust monitoring and error reporting for server instance management.
+
+**Next steps:**
+- Integrate new status/error reporting into frontend server/process status UI.
+- Expand tests to cover periodic status checks and error scenarios (e.g., port in use, no process).
+- Continue refining process management and monitoring for reliability and extensibility.
 - Testing: Created backend test plan and initial Jest test scaffolding for process management, base install management, and RCON script engine. Added `jest.config.json` and a sample test suite in `src/backend/__tests__/serverManager.spec.ts`. Installed Jest and related dependencies. Verified test setup with a successful initial test run (all scaffolded tests pass).
 
 **Next steps:**

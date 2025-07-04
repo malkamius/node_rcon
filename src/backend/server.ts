@@ -586,6 +586,12 @@ function broadcast(type: string, payload: any) {
     broadcast('sessionLine', { key, line });
   };
   rconManager.on('chatMessage', chatListener);
+
+processManager.on('processStatus', (key: string, status: ProcessStatus) => {
+  broadcast('processStatus', { key, status });
+});
+processManager.startPeriodicStatusCheck(1000);
+
 // WebSocket: send status updates to clients
 // On WebSocket connection, send all session logs to the client
 wss.on('connection', (ws) => {
@@ -618,9 +624,6 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'status', data: [{ key, ...state }] }));
   };
   rconManager.on('status', statusListener);
-
-
-
 
   ws.on('message', async (data) => {
     try {

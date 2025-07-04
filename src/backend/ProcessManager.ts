@@ -4,6 +4,7 @@
 
 import { EventEmitter } from 'events';
 import { listProcesses } from './processList';
+import { getProfiles } from './profiles';
 
 export interface ServerProcessProfile {
   key: string;
@@ -30,43 +31,73 @@ export abstract class ProcessManager extends EventEmitter {
   abstract isRunning(key: string, profile?: ServerProcessProfile): Promise<boolean>;
   abstract getStatus(key: string): ProcessStatus;
 
-  // Optionally override for auto-start logic
+  // Optionally override for auto-start logic and periodic status check
   async autoStart(profiles: ServerProcessProfile[]) {
     const portscanner = require('portscanner');
     for (const profile of profiles) {
-         const pathMod = require('path');
-        const fsMod = require('fs');
-        const exePath = pathMod.join(profile.directory, 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe');
-        const runningProcs = await listProcesses();
-        const found = runningProcs.find(p => p.exe && p.exe.toLowerCase() === exePath.toLowerCase());
-        if (found) {
+      const pathMod = require('path');
+      const exePath = pathMod.join(profile.directory, 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe');
+      const runningProcs = await listProcesses();
+      const found = runningProcs.find(p => p.exe && p.exe.toLowerCase() === exePath.toLowerCase());
+      if (found) {
         // Attach to running process (best effort, can't get start time reliably)
-            this.processes[profile.key] = { process: null, startTime: found.startTime?.getTime() || Date.now() };
-            this.emit('status', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
-            //return { running: true, startTime: this.processes[profile.key].startTime };
+        this.processes[profile.key] = { process: null, startTime: found.startTime?.getTime() || Date.now() };
+        this.emit('processStatus', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
+      } else if (profile.autoStart && (profile.manuallyStopped === undefined || !profile.manuallyStopped)) {
+        const portToCheck = profile.port;
+        if (portToCheck && portToCheck > 0 && portToCheck < 65536) {
+          portscanner.checkPortStatus(portToCheck, '127.0.0.1', (error: string | null | undefined, status: string | undefined) => {
+            if (error) {
+              console.error('Error checking port:', error);
+              return;
+            }
+            if (status === 'open') {
+              console.log(`Port ${portToCheck} is open (in use).`);
+            } else {
+              console.log(`Port ${portToCheck} is closed (free).`);
+              this.start(profile);
+            }
+          });
+        } else {
+          this.start(profile);
         }
-        else if (profile.autoStart && (profile.manuallyStopped === undefined || !profile.manuallyStopped)) {
-          const portToCheck = profile.port;
-          if(portToCheck && portToCheck > 0 && portToCheck < 65536) {
-            portscanner.checkPortStatus(portToCheck, '127.0.0.1', (error : string | null | undefined, status : string | null | undefined) => {
-              if (error) {
-                  console.error('Error checking port:', error);
-                  return;
-              }
-              if (status === 'open') {
-                  console.log(`Port ${portToCheck} is open (in use).`);
-              } else {
-                  console.log(`Port ${portToCheck} is closed (free).`);
-                  this.start(profile);
-              }
-            });
-          }
-          else
-          {
-            this.start(profile);
-          }
-        }
+      }
     }
+  }
+
+  // Periodically check status of all managed sessions
+  startPeriodicStatusCheck(intervalMs: number = 10000) {
+    const portscanner = require('portscanner');
+    setInterval(async () => {
+      const runningProcs = await listProcesses();
+      for (const profile of getProfiles()) {
+        const pathMod = require('path');
+        const exePath = pathMod.join(profile.directory, 'ShooterGame', 'Binaries', 'Win64', 'ArkAscendedServer.exe');
+        const found = runningProcs.find(p => p.exe && p.exe.toLowerCase() === exePath.toLowerCase());
+        const portToCheck = profile.port;
+        if (found) {
+          // Process is running
+          this.processes[profile.key] = { process: null, startTime: found.startTime?.getTime() || Date.now() };
+          this.emit('processStatus', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
+        } else if (portToCheck && portToCheck > 0 && portToCheck < 65536) {
+          portscanner.checkPortStatus(portToCheck, '127.0.0.1', (error: string | null | undefined, status: string | undefined) => {
+            if (error) {
+              this.emit('processStatus', profile.key, { running: false, error: `Error checking port: ${error}` });
+              return;
+            }
+            if (status === 'open') {
+              // Port is in use but no process detected
+              this.emit('processStatus', profile.key, { running: false, error: `Port ${portToCheck} is open but no process detected` });
+            } else {
+              // Not running
+              this.emit('processStatus', profile.key, { running: false });
+            }
+          });
+        } else {
+          this.emit('processStatus', profile.key, { running: false });
+        }
+      }
+    }, intervalMs);
   }
 }
 
@@ -83,7 +114,7 @@ export class ArkSAProcessManager extends ProcessManager {
     if (found) {
       // Attach to running process (best effort, can't get start time reliably)
       this.processes[profile.key] = { process: null, startTime: found.startTime?.getTime() || Date.now() };
-      this.emit('status', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
+      this.emit('processStatus', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
       return { running: true, startTime: this.processes[profile.key].startTime };
     }
     if (this.processes[profile.key]) return { running: true, error: 'Server already running' };
@@ -95,7 +126,7 @@ export class ArkSAProcessManager extends ProcessManager {
     });
     this.processes[profile.key] = { process: child, startTime: Date.now() };
     child.unref();
-    this.emit('status', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
+    this.emit('processStatus', profile.key, { running: true, startTime: this.processes[profile.key].startTime });
     return { running: true, startTime: this.processes[profile.key].startTime };
   }
 
@@ -104,7 +135,7 @@ export class ArkSAProcessManager extends ProcessManager {
     if (proc && proc.process) {
       try { proc.process.kill(); } catch (e) { return { running: false, error: String(e) }; }
       delete this.processes[key];
-      this.emit('status', key, { running: false });
+      this.emit('processStatus', key, { running: false });
       return { running: false };
     }
     return { running: false, error: 'No running process' };
