@@ -280,6 +280,15 @@ export const ServerManagerPage: React.FC = () => {
     };
   }, [sidebarResizing]);
 
+  function handleUpdateBaseInstall(path: string): void {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+    {
+      setError('WebSocket is not connected');
+      return;
+    }
+    wsRef.current.send(JSON.stringify({ type: 'updatebaseinstall', path }));
+  }
+
   // Render
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', minWidth: 0 }}>
@@ -397,7 +406,8 @@ export const ServerManagerPage: React.FC = () => {
               onManageServers={handleManageServers}
             />
           ) : activity === 'baseinstalls' ? (
-            <BaseInstallManager />
+            <BaseInstallManager 
+            handleUpdate={handleUpdateBaseInstall}/>
           ) : null}
         </div>
       </div>

@@ -20,7 +20,7 @@ import iniApi from './iniApi';
 import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
 import { ensureSocketServer, sendAdminSocketCommand } from './adminSocketClient';
 import { exit } from 'process';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 
 const configPath = path.join(__dirname, '../../config.json');
 const defaultConfig = {
@@ -87,6 +87,7 @@ async function getBaseInstallsFromProfiles() {
       await getBaseInstall(profile.directory).then(path => {
         if(!config.baseInstalls.some((b: any) => b.path === path)) {
           config.baseInstalls.push({ id: path, path: path, version: null, lastUpdated: null, updateAvailable: false, latestBuildId: null });
+          profile.baseInstallPath = path; // Store in profile for easy access
         }
       });
     }
@@ -595,126 +596,148 @@ processManager.startPeriodicStatusCheck(1000);
 // WebSocket: send status updates to clients
 // On WebSocket connection, send all session logs to the client
 wss.on('connection', (ws) => {
-  ws.on('message', async (data) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      if (msg.type === 'clearSessionLines' && msg.key) {
-        sessionLines[msg.key] = [];
-        saveSessionLinesToDisk(msg.key, []);
-        // Broadcast empty log to all clients
-        broadcast('sessionLine', { key: msg.key, line: null });
-        // Also broadcast the full (empty) log for the key
-        broadcast('sessionLines', { key: msg.key });
-        return;
-      }
-    } catch {}
-  });
-  ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
-  // Send all session logs (all keys)
-  // On connect, reload all session lines from disk for all known keys
-  const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':'));
-  for (const key of allKeys) {
-    if (!sessionLines[key]) sessionLines[key] = loadSessionLinesFromDisk(key);
-  }
-  ws.send(JSON.stringify({ type: 'sessionLines', data: sessionLines }));
-  // Send current status
-  ws.send(JSON.stringify({ type: 'status', data: rconManager.getStatus() }));
-  // Listen for status changes
-  const statusListener = (key: string, state: any) => {
-    ws.send(JSON.stringify({ type: 'status', data: [{ key, ...state }] }));
-  };
-  rconManager.on('status', statusListener);
-
-  ws.on('message', async (data) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      if (msg.type === 'command' && msg.key && typeof msg.command === 'string') {
-        // Store the command line with guid/type if provided
-        const commandLine: any = {
-          text: '> ' + msg.command,
-          timestamp: Date.now(),
-          type: 'command',
-        };
-        if (msg.guid) commandLine.guid = msg.guid;
-        if (!sessionLines[msg.key]) sessionLines[msg.key] = [];
-        sessionLines[msg.key].push(commandLine);
-        if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
-          sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
+  (async () => {
+    ws.on('message', async (data) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'clearSessionLines' && msg.key) {
+          sessionLines[msg.key] = [];
+          saveSessionLinesToDisk(msg.key, []);
+          // Broadcast empty log to all clients
+          broadcast('sessionLine', { key: msg.key, line: null });
+          // Also broadcast the full (empty) log for the key
+          broadcast('sessionLines', { key: msg.key });
+          return;
         }
-        saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
-        broadcast('sessionLine', { key: msg.key, line: commandLine });
-
-        // Use real RCON connection
-        const output = await rconManager.sendCommand(msg.key, msg.command);
-        // Send output with guid/type if guid was provided
-        if (typeof output === 'string' && output.trim()) {
-          const outputLine: any = {
-            text: output,
+        if (msg.type === 'command' && msg.key && typeof msg.command === 'string') {
+          // Store the command line with guid/type if provided
+          const commandLine: any = {
+            text: '> ' + msg.command,
             timestamp: Date.now(),
-            type: 'output',
+            type: 'command',
           };
-          if (msg.guid) outputLine.guid = msg.guid;
-          sessionLines[msg.key].push(outputLine);
+          if (msg.guid) commandLine.guid = msg.guid;
+          if (!sessionLines[msg.key]) sessionLines[msg.key] = [];
+          sessionLines[msg.key].push(commandLine);
           if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
             sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
           }
           saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
-          broadcast('sessionLine', { key: msg.key, line: outputLine });
-        }
-        // (No need to send output event for legacy clients)
-      } else if (msg.type === 'adminTask' && typeof msg.script === 'string') {
-        // Execute admin task via socket server
-        try {
-          const result = await sendAdminSocketCommand(msg.script);
-          ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, result }));
-        } catch (err) {
-          ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, error: String(err) }));
-        }
-      } else if (msg.type === 'shutdownserver' && msg.keys) {
-        // Handle server shutdown
-        const keys = msg.keys;
-        const profiles = getProfiles();
-        const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
-        if (affectedProfiles.length > 0) {
-          affectedProfiles.forEach((profile : any) => {
-            profile.manuallyStopped = true;
-          });
-          saveProfiles(profiles);
-          affectedProfiles.forEach((profile : any) => {
-            setServerManuallyStopped(`${profile.host}:${profile.port}`, true);
-            // Stop the process
-            processManager.stopProcess(`${profile.host}:${profile.port}`);
-          });
-          ws.send(JSON.stringify({ type: 'shutdownserverHandled', keys }));
-        } else {
-          ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
-        }
-      } else if (msg.type === 'startserver' && msg.keys) {
-        // Handle server force start
-        const keys = msg.keys;
-        const profiles = getProfiles();
-        const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
-        if (affectedProfiles.length > 0) {
-          affectedProfiles.forEach((profile : any) => {
-            profile.manuallyStopped = false;
-          });
-          saveProfiles(profiles);
-          affectedProfiles.forEach((profile : any) => {
-            setServerManuallyStopped(`${profile.host}:${profile.port}`, false);
-            // Start the process
-            processManager.start(profile);
-          });
-          ws.send(JSON.stringify({ type: 'startserverHandled', keys }));
-        } else {
-          ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
-        }
-      }
-    } catch {}
-  });
+          broadcast('sessionLine', { key: msg.key, line: commandLine });
 
-  ws.on('close', () => {
-    rconManager.off('status', statusListener);
-  });
+          // Use real RCON connection
+          const output = await rconManager.sendCommand(msg.key, msg.command);
+          // Send output with guid/type if guid was provided
+          if (typeof output === 'string' && output.trim()) {
+            const outputLine: any = {
+              text: output,
+              timestamp: Date.now(),
+              type: 'output',
+            };
+            if (msg.guid) outputLine.guid = msg.guid;
+            sessionLines[msg.key].push(outputLine);
+            if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
+              sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
+            }
+            saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
+            broadcast('sessionLine', { key: msg.key, line: outputLine });
+          }
+          // (No need to send output event for legacy clients)
+        } else if (msg.type === 'adminTask' && typeof msg.script === 'string') {
+          // Execute admin task via socket server
+          try {
+            const result = await sendAdminSocketCommand(msg.script);
+            ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, result }));
+          } catch (err) {
+            ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, error: String(err) }));
+          }
+        } else if (msg.type === 'shutdownserver' && msg.keys) {
+          // Handle server shutdown
+          const keys = msg.keys;
+          const profiles = getProfiles();
+          const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
+          if (affectedProfiles.length > 0) {
+            affectedProfiles.forEach((profile : any) => {
+              profile.manuallyStopped = true;
+            });
+            saveProfiles(profiles);
+            affectedProfiles.forEach((profile : any) => {
+              setServerManuallyStopped(`${profile.host}:${profile.port}`, true);
+              // Stop the process
+              processManager.stopProcess(`${profile.host}:${profile.port}`);
+            });
+            ws.send(JSON.stringify({ type: 'shutdownserverHandled', keys }));
+          } else {
+            ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
+          }
+        } else if (msg.type === 'startserver' && msg.keys) {
+          // Handle server force start
+          const keys = msg.keys;
+          const profiles = getProfiles();
+          const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
+          if (affectedProfiles.length > 0) {
+            affectedProfiles.forEach((profile : any) => {
+              profile.manuallyStopped = false;
+            });
+            saveProfiles(profiles);
+            affectedProfiles.forEach((profile : any) => {
+              setServerManuallyStopped(`${profile.host}:${profile.port}`, false);
+              // Start the process
+              processManager.start(profile);
+            });
+            ws.send(JSON.stringify({ type: 'startserverHandled', keys }));
+          } else {
+            ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
+          }
+        } else if(msg.type === 'updatebaseinstall' && typeof msg.path === 'string') {
+          // Handle base install update (async isRunning)
+          const profiles = getProfiles();
+          const affectedProfiles = profiles.filter((p: any) => p.baseInstallPath === msg.path);
+          if (affectedProfiles.length > 0) {
+            // Check if any affected profile is running (async)
+            const runningChecks = await Promise.all(
+              affectedProfiles.map((profile: any) => processManager.isRunning(`${profile.host}:${profile.port}`, profile))
+            );
+            if (!runningChecks.some(running => running)) {
+              affectedProfiles.forEach((profile: any) => {
+                spawn('steamcmd', [
+                  '+login', 'anonymous',
+                  '+force_install_dir', profile.baseInstallPath,
+                  '+app_update', 2430930,
+                  '+quit'
+                ]);
+              });
+              ws.send(JSON.stringify({ type: 'updatebaseinstallHandled', path: msg.path }));
+            } else {
+              ws.send(JSON.stringify({ type: 'error', message: 'Cannot update base install while servers are running' }));
+            }
+          } else {
+            ws.send(JSON.stringify({ type: 'error', message: 'Base install not found' }));
+          }
+        }
+      } catch {}
+    });
+
+    ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
+    // Send all session logs (all keys)
+    // On connect, reload all session lines from disk for all known keys
+    const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':'));
+    for (const key of allKeys) {
+      if (!sessionLines[key]) sessionLines[key] = loadSessionLinesFromDisk(key);
+    }
+    ws.send(JSON.stringify({ type: 'sessionLines', data: sessionLines }));
+    // Send current status
+    ws.send(JSON.stringify({ type: 'status', data: rconManager.getStatus() }));
+    // Listen for status changes
+    const statusListener = (key: string, state: any) => {
+      ws.send(JSON.stringify({ type: 'status', data: [{ key, ...state }] }));
+    };
+    rconManager.on('status', statusListener);
+
+    ws.on('close', () => {
+      rconManager.off('status', statusListener);
+    });
+  })();
 });
 
 // API: Get server profiles

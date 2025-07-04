@@ -1,3 +1,15 @@
+## 2025-07-04
+- Backend: Fixed bug in WebSocket handler for `updatebaseinstall`—now properly awaits async `processManager.isRunning` for all affected profiles before allowing a base install update. Prevents race conditions and ensures updates only run when all related servers are stopped.
+
+**Next steps:**
+- Monitor for any issues with async process status checks during base install updates.
+-## 2025-07-04
+- Frontend: Replaced the table in `BaseInstallManager.tsx` with a flexbox-based layout for base install management. This improves alignment, visual consistency, and layout flexibility. The new design ensures headers and values are properly aligned and enhances accessibility.
+
+**Next steps:**
+- Monitor user feedback for any layout or accessibility issues with the new flexbox design.
+- Continue refining frontend UI for usability and responsiveness as needed.
+
 ## 2025-07-03
 - Backend: Added periodic process status check to ProcessManager. The backend now calls getStatus on all managed server sessions at a regular interval, using listProcesses and portscanner to detect if a port is in use but no process is detected. Emits an error status in this case for improved diagnostics and frontend display. This supports robust monitoring and error reporting for server instance management.
 

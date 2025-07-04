@@ -11,7 +11,11 @@ interface BaseInstall {
   latestBuildId?: string;
 }
 
-export const BaseInstallManager: React.FC = () => {
+interface BaseInstallManagerProps {
+  handleUpdate: (path: string) => void;
+}
+
+export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUpdate }) => {
 
 
   const [baseInstalls, setBaseInstalls] = useState<BaseInstall[]>([]);
@@ -82,7 +86,7 @@ export const BaseInstallManager: React.FC = () => {
   };
 
   // Update
-  const handleUpdate = () => {
+  const handleUpdateSelected = () => {
     const bi = baseInstalls.find(b => b.id === selectedId);
     if (bi) {
       setForm({ ...bi });
@@ -147,35 +151,69 @@ export const BaseInstallManager: React.FC = () => {
       {/* Controls: Add, Update, Remove */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
         <button onClick={handleAdd} disabled={actionLoading}>Add Base Install</button>
-        <button onClick={handleUpdate} disabled={!selectedId || actionLoading}>Update Selected</button>
+  <button onClick={handleUpdateSelected} disabled={!selectedId || actionLoading}>Update Selected</button>
         <button onClick={handleRemove} disabled={!selectedId || actionLoading}>Remove Selected</button>
       </div>
-      <table style={{ width: '100%', background: '#23272e', color: '#eee', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th></th>
-            <th>ID</th>
-            <th>Path</th>
-            <th>Version</th>
-            <th>Last Updated</th>
-            <th>Update Available</th>
-            <th>Latest Build</th>
-          </tr>
-        </thead>
-        <tbody>
-          {baseInstalls.map(b => (
-            <tr key={b.id} style={{ background: b.updateAvailable ? '#332' : (selectedId === b.id ? '#224' : undefined) }} onClick={() => handleSelect(b.id)}>
-              <td><input type="radio" checked={selectedId === b.id} onChange={() => handleSelect(b.id)} /></td>
-              <td>{b.id}</td>
-              <td>{b.path}</td>
-              <td>{b.version || '-'}</td>
-              <td>{b.lastUpdated ? new Date(b.lastUpdated).toLocaleString() : '-'}</td>
-              <td style={{ color: b.updateAvailable ? '#fa0' : '#6f6' }}>{b.updateAvailable ? 'Yes' : 'No'}</td>
-              <td>{b.latestBuildId || '-'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Flexbox-based header and rows */}
+      <div style={{ width: '100%', background: '#23272e', color: '#eee', borderRadius: 4, overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', fontWeight: 600, borderBottom: '2px solid #333', padding: '8px 0', textAlign: 'left' }}>
+          <div style={{ flex: '0 0 40px', paddingLeft: 8 }}></div>
+          <div style={{ flex: '1 1 120px', minWidth: 80 }}>ID</div>
+          <div style={{ flex: '2 1 200px', minWidth: 120 }}>Path</div>
+          <div style={{ flex: '1 1 80px', minWidth: 60 }}>Version</div>
+          <div style={{ flex: '1 1 140px', minWidth: 100 }}>Last Updated</div>
+          <div style={{ flex: '1 1 120px', minWidth: 80 }}>Update Available</div>
+          <div style={{ flex: '1 1 100px', minWidth: 80 }}>Latest Build</div>
+        </div>
+        {/* Rows */}
+        {baseInstalls.map(b => (
+          <div
+            key={b.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: b.updateAvailable ? '#332' : (selectedId === b.id ? '#224' : undefined),
+              borderBottom: '1px solid #222',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+              padding: '6px 0',
+            }}
+            onClick={() => handleSelect(b.id)}
+          >
+            <div style={{ flex: '0 0 40px', paddingLeft: 8 }}>
+              <input type="radio" checked={selectedId === b.id} onChange={() => handleSelect(b.id)} />
+            </div>
+            <div style={{ flex: '1 1 120px', minWidth: 80, wordBreak: 'break-all' }}>{b.id}</div>
+            <div style={{ flex: '2 1 200px', minWidth: 120, wordBreak: 'break-all' }}>{b.path}</div>
+            <div style={{ flex: '1 1 80px', minWidth: 60 }}>{b.version || '-'}</div>
+            <div style={{ flex: '1 1 140px', minWidth: 100 }}>{b.lastUpdated ? new Date(b.lastUpdated).toLocaleString() : '-'}</div>
+            <div style={{ flex: '1 1 120px', minWidth: 80, color: b.updateAvailable ? '#fa0' : '#6f6' }}>
+              {b.updateAvailable ? (
+                <button
+                  style={{
+                    background: '#fa0',
+                    color: '#222',
+                    border: 'none',
+                    borderRadius: 4,
+                    padding: '2px 10px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleUpdate(b.path);
+                  }}
+                  title="Update base install"
+                >
+                  Update Available
+                </button>
+              ) : 'No'}
+            </div>
+            <div style={{ flex: '1 1 100px', minWidth: 80 }}>{b.latestBuildId || '-'}</div>
+          </div>
+        ))}
+      </div>
 
       {/* Add Modal */}
       {showAdd && (
