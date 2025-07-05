@@ -1,8 +1,20 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
     "version": "0.2.0",
     "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Backend Server (TS-Node)",
+            "runtimeArgs": ["--require", "ts-node/register", "--inspect-brk"], // Add this line
+            "args": ["${workspaceFolder}/src/backend/server.ts"], // Point directly to the TS file
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "restart": true,
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "preLaunchTask": "Build All (Frontend & Backend)" // Keep this if you still want to build before launching
+        },
         {
             "type": "node",
             "request": "launch",

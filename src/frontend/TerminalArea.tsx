@@ -123,9 +123,13 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
           Loading history...
         </div>
       )}
-      {activeTab && status && (
+      {activeTab && status && typeof status.status === 'string' ? (
         <div style={{ position: 'absolute', top: 8, right: 16, color: status.status === 'connected' ? '#6f6' : status.status === 'connecting' ? '#ff6' : '#f66', fontWeight: 'bold' }}>
           {status.status.charAt(0).toUpperCase() + status.status.slice(1)}
+        </div>
+      ) : activeTab && status && (
+        <div style={{ position: 'absolute', top: 8, right: 16, color: '#f66', fontWeight: 'bold' }}>
+          Status unavailable
         </div>
       )}
     </div>
