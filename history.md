@@ -1,3 +1,10 @@
+## 2025-07-05
+- Backend: Updated `Install-Instance.ps1` so that `Mods` and `ModsUserData` folders under `ShooterGame\Binaries\Win64\ShooterGame` are now always created as real folders (not junctioned or symlinked) in new server instances. These folders are excluded from the dynamic linking process and are created as standard directories in the instance.
+
+**Next steps:**
+- Test instance creation to confirm Mods and ModsUserData are real folders and not links.
+- Update documentation if further exclusions or instance-specific folders are needed.
+
 ## 2025-07-04
 - Backend: Fixed bug in WebSocket handler for `updatebaseinstall`—now properly awaits async `processManager.isRunning` for all affected profiles before allowing a base install update. Prevents race conditions and ensures updates only run when all related servers are stopped.
 

@@ -203,10 +203,18 @@ Write-Host "Discovering files and directories to link..."
 
 $linksToCreate = @() # Initialize an empty array for dynamic links
 
+
 # Define directories/files to EXCLUDE from automatic linking at their respective levels
 # ShooterGame and ShooterGame\Saved are specifically managed as instance-specific directories.
 $excludeFromRoot = @("ShooterGame")
-$excludeFromShooterGame = @("Saved")
+# At ShooterGame level, exclude Binaries (so we can create it as a real folder)
+$excludeFromShooterGame = @("Saved", "Binaries")
+# For ShooterGame\Binaries, exclude nothing (link all contents except Win64)
+$excludeFromBinaries = @("Win64")
+# For ShooterGame\Binaries\Win64, exclude the ShooterGame directory itself (so we can create it as a real folder)
+$excludeFromWin64 = @("ShooterGame")
+# For ShooterGame\Binaries\Win64\ShooterGame, exclude Mods and ModsUserData
+$excludeFromWin64ShooterGame = @("Mods", "ModsUserData")
 
 # --- Process items in BaseServerInstallDirectory ---
 Get-ChildItem -Path $BaseServerInstallDirectory -Force | ForEach-Object {
@@ -225,6 +233,7 @@ Get-ChildItem -Path $BaseServerInstallDirectory -Force | ForEach-Object {
     $linksToCreate += @{ Target = $targetPath; Source = $sourcePath; Name = $linkName; LinkType = $currentLinkType }
 }
 
+
 # --- Process items in BaseServerInstallDirectory\ShooterGame ---
 $baseShooterGamePath = Join-Path $BaseServerInstallDirectory "ShooterGame"
 if (Test-Path $baseShooterGamePath -PathType Container) { # Ensure ShooterGame exists in base
@@ -232,11 +241,10 @@ if (Test-Path $baseShooterGamePath -PathType Container) { # Ensure ShooterGame e
         $item = $_
         # Skip excluded items within ShooterGame
         if ($excludeFromShooterGame -contains $item.Name) {
-            return # Skip this item (e.g., "Saved")
+            return # Skip this item (e.g., "Saved" or "Binaries")
         }
 
         $sourcePath = $item.FullName
-        # CORRECTED: Use Join-Path correctly for nested paths
         $targetPath = Join-Path $instanceShooterGamePath $item.Name 
         $linkName = "ShooterGame\" + $item.Name # For descriptive logging
 
@@ -244,11 +252,91 @@ if (Test-Path $baseShooterGamePath -PathType Container) { # Ensure ShooterGame e
 
         $linksToCreate += @{ Target = $targetPath; Source = $sourcePath; Name = $linkName; LinkType = $currentLinkType }
     }
+
+    # --- Always create real Binaries directory in the instance ---
+    $instanceBinariesPath = Join-Path $instanceShooterGamePath "Binaries"
+    if (-not (Test-Path $instanceBinariesPath)) {
+        try {
+            Write-Host "Creating real folder for Binaries at $instanceBinariesPath"
+            New-Item -ItemType Directory -Path $instanceBinariesPath -Force | Out-Null
+        } catch {
+            Write-Error "Failed to create real folder '$instanceBinariesPath'. Error: $($_.Exception.Message). Exiting."
+            exit 1
+        }
+    }
+
+    # --- Process items in BaseServerInstallDirectory\ShooterGame\Binaries ---
+    $baseBinariesPath = Join-Path $baseShooterGamePath "Binaries"
+    if (Test-Path $baseBinariesPath -PathType Container) {
+        Get-ChildItem -Path $baseBinariesPath -Force | ForEach-Object {
+            $item = $_
+            if ($excludeFromBinaries -contains $item.Name) {
+                return # Skip Win64 directory itself
+            }
+            $sourcePath = $item.FullName
+            $targetPath = Join-Path $instanceBinariesPath $item.Name
+            $linkName = "ShooterGame\\Binaries\" + $item.Name
+            $currentLinkType = if ($item.PSIsContainer) { "Directory" } else { "File" }
+            $linksToCreate += @{ Target = $targetPath; Source = $sourcePath; Name = $linkName; LinkType = $currentLinkType }
+        }
+    } else {
+        Write-Warning "Base ShooterGame\\Binaries directory '$baseBinariesPath' not found. No sub-items will be linked from there."
+    }
+
+    # --- Always create real Win64 directory in the instance ---
+    $instanceWin64Path = Join-Path $instanceBinariesPath "Win64"
+    if (-not (Test-Path $instanceWin64Path)) {
+        try {
+            Write-Host "Creating real folder for Win64 at $instanceWin64Path"
+            New-Item -ItemType Directory -Path $instanceWin64Path -Force | Out-Null
+        } catch {
+            Write-Error "Failed to create real folder '$instanceWin64Path'. Error: $($_.Exception.Message). Exiting."
+            exit 1
+        }
+    }
+
+    # --- Process items in BaseServerInstallDirectory\ShooterGame\Binaries\Win64 ---
+    $baseWin64Path = Join-Path $baseBinariesPath "Win64"
+    if (Test-Path $baseWin64Path -PathType Container) {
+        Get-ChildItem -Path $baseWin64Path -Force | ForEach-Object {
+            $item = $_
+            if ($excludeFromWin64 -contains $item.Name) {
+                return # Skip ShooterGame directory itself
+            }
+            $sourcePath = $item.FullName
+            $targetPath = Join-Path $instanceWin64Path $item.Name
+            $linkName = "ShooterGame\\Binaries\\Win64\" + $item.Name
+            $currentLinkType = if ($item.PSIsContainer) { "Directory" } else { "File" }
+            $linksToCreate += @{ Target = $targetPath; Source = $sourcePath; Name = $linkName; LinkType = $currentLinkType }
+        }
+    } else {
+        Write-Warning "Base ShooterGame\\Binaries\\Win64 directory '$baseWin64Path' not found. No sub-items will be linked from there."
+    }
+
+    # Now handle the contents of ShooterGame\Binaries\Win64\ShooterGame, but do NOT link the directory itself
+    $baseWin64ShooterGamePath = Join-Path $baseWin64Path "ShooterGame"
+    $instanceWin64ShooterGamePath = Join-Path $instanceWin64Path "ShooterGame"
+    if (Test-Path $baseWin64ShooterGamePath -PathType Container) {
+        Get-ChildItem -Path $baseWin64ShooterGamePath -Force | ForEach-Object {
+            $item = $_
+            if ($excludeFromWin64ShooterGame -contains $item.Name) {
+                return # Skip Mods and ModsUserData
+            }
+            $sourcePath = $item.FullName
+            $targetPath = Join-Path $instanceWin64ShooterGamePath $item.Name
+            $linkName = "ShooterGame\\Binaries\\Win64\\ShooterGame\" + $item.Name
+            $currentLinkType = if ($item.PSIsContainer) { "Directory" } else { "File" }
+            $linksToCreate += @{ Target = $targetPath; Source = $sourcePath; Name = $linkName; LinkType = $currentLinkType }
+        }
+    } else {
+        Write-Warning "Base ShooterGame\\Binaries\\Win64\\ShooterGame directory '$baseWin64ShooterGamePath' not found. No sub-items will be linked from there."
+    }
 } else {
     Write-Warning "Base ShooterGame directory '$baseShooterGamePath' not found. No sub-items will be linked from there."
 }
 
 #endregion
+
 
 #region --- Link Creation Logic ---
 foreach ($link in $linksToCreate) {
@@ -295,6 +383,31 @@ foreach ($link in $linksToCreate) {
         Write-Error "Failed to create $($link.LinkType) link for '$($link.Name)': $($_.Exception.Message)"
         Write-Error "Command executed: $command"
         exit 1
+    }
+}
+
+# Ensure ShooterGame\Binaries\Win64\ShooterGame and Mods/ModsUserData are real folders in the instance
+$instanceWin64Path = Join-Path $instanceShooterGamePath "Binaries\Win64"
+$instanceWin64ShooterGamePath = Join-Path $instanceWin64Path "ShooterGame"
+if (-not (Test-Path $instanceWin64ShooterGamePath)) {
+    try {
+        Write-Host "Creating real folder for ShooterGame at $instanceWin64ShooterGamePath"
+        New-Item -ItemType Directory -Path $instanceWin64ShooterGamePath -Force | Out-Null
+    } catch {
+        Write-Error "Failed to create real folder '$instanceWin64ShooterGamePath'. Error: $($_.Exception.Message). Exiting."
+        exit 1
+    }
+}
+foreach ($realFolder in $excludeFromWin64ShooterGame) {
+    $realFolderPath = Join-Path $instanceWin64ShooterGamePath $realFolder
+    if (-not (Test-Path $realFolderPath)) {
+        try {
+            Write-Host "Creating real folder for $realFolder at $realFolderPath"
+            New-Item -ItemType Directory -Path $realFolderPath -Force | Out-Null
+        } catch {
+            Write-Error "Failed to create real folder '$realFolderPath'. Error: $($_.Exception.Message). Exiting."
+            exit 1
+        }
     }
 }
 
