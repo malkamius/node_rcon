@@ -159,6 +159,8 @@ export class RconManager extends EventEmitter {
       this.emit('status', key, { status: 'connecting', since: Date.now() });
       try {
         const rcon = new Rcon({ host: profile.host, port: profile.port, password: profile.password });
+        rcon.on('end', () => this.handleDisconnect(profile));
+        rcon.on('error', (err) => this.handleDisconnect(profile));
         await rcon.connect();
         // On successful connect, clear disconnectedSince
         if (this.disconnectedSince.has(key)) {
@@ -166,8 +168,7 @@ export class RconManager extends EventEmitter {
         }
         this.connections.set(key, { status: 'connected', since: Date.now(), rcon });
         this.emit('status', key, { status: 'connected', since: Date.now() });
-        rcon.on('end', () => this.handleDisconnect(profile));
-        rcon.on('error', () => this.handleDisconnect(profile));
+        
       } catch (e) {
         // Release lock before calling handleDisconnect to avoid deadlock
         this.releaseLock(key);
