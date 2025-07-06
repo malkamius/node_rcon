@@ -55,7 +55,9 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       termRef.current = null;
       fitAddonRef.current = null;
     };
-  }, []);  // Write session lines to terminal when session, activeTab, or sessionVersion changes
+  }, []);  
+  
+  // Write session lines to terminal when session, activeTab, or sessionVersion changes
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
@@ -76,7 +78,7 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
     const lines = session && session.lines ? session.lines : [];
     const isNewSession = lastSessionKey.current !== sessionKey;
     const isCleared = writtenLineCount.current > lines.length;
-
+    
     // If "Loading history..." is present, clear it before writing new lines
     // (xterm.js does not provide a way to read terminal contents, so we use writtenLineCount as a proxy)
     if ((isNewSession || isCleared || writtenLineCount.current === 0) && !loading) {

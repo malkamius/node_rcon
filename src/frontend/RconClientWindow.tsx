@@ -41,7 +41,7 @@ interface RconClientAppProps {
 }
 
 // If terminalManager/sessionVersion are not provided, create a local one (for backward compatibility/testing)
-const defaultTerminalManager = new RconTerminalManager();
+const defaultTerminalManager = new RconTerminalManager(100, { current: null } as React.MutableRefObject<WebSocket | null>);
 
 export const RconClientWindow: React.FC<RconClientAppProps> = ({
   serverProfiles,

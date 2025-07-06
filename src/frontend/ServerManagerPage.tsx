@@ -1,6 +1,36 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchProcessStatus } from './processStatusApi';
+import { fetchProcessStatusWS } from './processStatusApi';
+// --- WebSocket request/response utility ---
+function wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, timeout = 8000) {
+  
+  if (!ws || ws.readyState !== 1) {
+    console.trace();
+    cb({ error: 'WebSocket not connected' });
+    return;
+  }
+  const requestId = 'req' + Math.random().toString(36).slice(2);
+  payload.requestId = requestId;
+  let timeoutTimer = setTimeout(() => {
+    ws.removeEventListener('message', handleMessage);
+    cb({ error: 'WebSocket request timeout' });
+  }, timeout);
+
+  const handleMessage = (event: MessageEvent) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.requestId === requestId) {
+        ws.removeEventListener('message', handleMessage);
+        cb(msg);
+        clearTimeout(timeoutTimer);
+      }
+    } catch {}
+  };
+  ws.addEventListener('message', handleMessage);
+  
+  ws.send(JSON.stringify(payload));
+  
+}
 import { TabManager } from './TabManager';
 import { RconClientWindow } from './RconClientWindow';
 import { ServerConfigTab } from './ServerConfigTab';
@@ -23,7 +53,6 @@ interface ServerProfile {
 
 type ActivityTab = 'rcon' | 'config' | 'baseinstalls';
 
-const terminalManager = new RconTerminalManager();
 
 export const ServerManagerPage: React.FC = () => {
   const [serverProfiles, setServerProfiles] = useState<ServerProfile[]>([]);
@@ -31,10 +60,11 @@ export const ServerManagerPage: React.FC = () => {
   const [statusMap, setStatusMap] = useState<Record<string, any>>({});
   // rconStatusMap: key -> { status: 'connected' | 'connecting' | 'disconnected', since: number }
   const [rconStatusMap, setRconStatusMap] = useState<Record<string, any>>({});
+  
   // Fetch process status from backend
   const loadProcessStatus = useCallback(async () => {
     try {
-      const data = await fetchProcessStatus();
+      const data = await fetchProcessStatusWS(wsRef.current);
       if (data && Array.isArray(data.status)) {
         // Map: key -> status object
         const map: Record<string, any> = {};
@@ -66,6 +96,7 @@ export const ServerManagerPage: React.FC = () => {
   const sidebarStartX = useRef<number>(0);
   const sidebarStartWidth = useRef<number>(220);
   const wsRef = useRef<WebSocket | null>(null);
+  const terminalManager = useRef(new RconTerminalManager(100, wsRef));
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track loading state for each session key
   const [loadingSessions, setLoadingSessions] = useState<Record<string, boolean>>({});
@@ -74,40 +105,43 @@ export const ServerManagerPage: React.FC = () => {
     selectedKeyRef.current = selectedKey;
   }, [selectedKey]);
 
-  // Load server profiles
-  const loadServerProfiles = useCallback(async () => {
-    try {
-      const res = await fetch('/api/profiles');
-      if (res.ok) {
-        const profiles = await res.json();
-        setServerProfiles(profiles);
-        setError(null);
-        if (!selectedKey && profiles.length > 0) {
-          let key = `${profiles[0].host}:${profiles[0].port}`;
-          setSelectedKey(key);
-          if (!terminalManager.getSession(key).lines.length && !loadingSessions[key]) {
-            setLoadingSessions(ls => ({ ...ls, [key]: true }));
-            fetch(`/api/session-lines/${encodeURIComponent(key)}`)
-              .then(res => res.json())
-              .then(data => {
-                if (Array.isArray(data.lines)) {
-                  const session = terminalManager.getSession(key);
-                  session.lines = data.lines;
-                  setSessionVersion(v => v + 1);
-                }
-              })
-              .finally(() => setLoadingSessions(ls => ({ ...ls, [key]: false })));
-          }
-        }
-      } else {
-        setError('Failed to load server profiles');
-      }
-    } catch (e) {
-      setError('Failed to load server profiles');
-      // eslint-disable-next-line no-console
-      console.error('Failed to load server profiles', e);
+  // Load server profiles (via WebSocket)
+  const loadServerProfiles = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== 1) {
+      console.trace();
+      setError('WebSocket not connected');
+      return;
     }
-  }, [selectedKey]);
+    wsRequest(wsRef.current, { type: 'getProfiles' }, (msg) => {
+      if (msg.error) {
+        setError('Failed to load server profiles');
+        return;
+      }
+      const profiles = msg.profiles || [];
+      setServerProfiles(profiles);
+      setError(null);
+      if (!selectedKey && profiles.length > 0) {
+        let key = `${profiles[0].host}:${profiles[0].port}`;
+        setSelectedKey(key);
+        if (!terminalManager.current.getSession(key).lines.length && !loadingSessions[key]) {
+          setLoadingSessions(ls => ({ ...ls, [key]: true }));
+          wsRequest(wsRef.current, { type: 'getSessionLines', key }, (data) => {
+            if (Array.isArray(data.lines)) {
+              const session = terminalManager.current.getSession(key);
+              session.lines = data.lines;
+              setSessionVersion(v => v + 1);
+            }
+            else {
+              const session = terminalManager.current.getSession(key);
+              session.lines = [];
+              setSessionVersion(v => v + 1);
+            }
+            setLoadingSessions(ls => ({ ...ls, [key]: false }));
+          });
+        }
+      }
+    });
+  }, [selectedKey, loadingSessions]);
 
   // WebSocket connection
   const connectWebSocket = useCallback(() => {
@@ -122,19 +156,22 @@ export const ServerManagerPage: React.FC = () => {
         reconnectTimer.current = null;
       }
       setDisconnected(false);
+      loadServerProfiles();
     };
-    ws.onmessage = (event: MessageEvent) => {
+    ws.addEventListener('message', (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data);
 
         if (msg.type === 'sessionLine' && msg.key && msg.line) {
           // Real-time new line from backend
-          terminalManager.appendLine(msg.key, msg.line.text, msg.line.timestamp, false);
+          terminalManager.current.appendLine(msg.key, msg.line.text, msg.line.timestamp, false);
           if (selectedKeyRef.current === msg.key) setSessionVersion((v) => v + 1);
-        } else if (msg.type === 'sessionLines' && msg.key) {
+        } else if (msg.type === 'getSessionLines' && msg.key) {
           // Initial load of session lines
-          const session = terminalManager.getSession(msg.key);
-          session.lines = [];
+          const session = terminalManager.current.getSession(msg.key);
+          if (Array.isArray(msg.lines)) {
+            session.lines = msg.lines;
+          }
           setSessionVersion((v) => v + 1);
         } else if (msg.type === 'status') {
           setRconStatusMap((prev) => {
@@ -148,14 +185,14 @@ export const ServerManagerPage: React.FC = () => {
           // Real-time process status update from backend
           setStatusMap((prev) => ({ ...prev, [msg.key]: { ...prev[msg.key], ...msg.status } }));
         } else if (msg.type === 'output' && msg.key && typeof msg.output === 'string') {
-          terminalManager.appendLine(msg.key, msg.output.replace(/\r?\n/g, '\r\n'), undefined, false);
+          terminalManager.current.appendLine(msg.key, msg.output.replace(/\r?\n/g, '\r\n'), undefined, false);
           setSessionVersion((v) => v + 1);
         } else if (msg.type === 'chatMessage' && msg.key && typeof msg.output === 'string') {
-          terminalManager.appendLine(msg.key, msg.output.replace(/\r?\n/g, '\r\n'), undefined, false);
+          terminalManager.current.appendLine(msg.key, msg.output.replace(/\r?\n/g, '\r\n'), undefined, false);
           if (selectedKeyRef.current === msg.key) setSessionVersion((v) => v + 1);
         }
       } catch {}
-    };
+    });
     ws.onclose = () => {
       setDisconnected(true);
       if (!reconnectTimer.current) {
@@ -166,8 +203,8 @@ export const ServerManagerPage: React.FC = () => {
 
   // Initial load
   useEffect(() => {
-    loadServerProfiles();
     connectWebSocket();
+    
     return () => {
       if (wsRef.current) wsRef.current.close();
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
@@ -175,21 +212,19 @@ export const ServerManagerPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Tab select handler: load session lines if not loaded
+  // Tab select handler: load session lines if not loaded (WebSocket only)
   const handleTabSelect = (key: string) => {
     setSelectedKey(key);
-    if (!terminalManager.getSession(key).lines.length && !loadingSessions[key]) {
+    if (!terminalManager.current.getSession(key).lines.length && !loadingSessions[key]) {
       setLoadingSessions(ls => ({ ...ls, [key]: true }));
-      fetch(`/api/session-lines/${encodeURIComponent(key)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data.lines)) {
-            const session = terminalManager.getSession(key);
-            session.lines = data.lines;
-            setSessionVersion(v => v + 1);
-          }
-        })
-        .finally(() => setLoadingSessions(ls => ({ ...ls, [key]: false })));
+      wsRequest(wsRef.current, { type: 'getSessionLines', key }, (data) => {
+        if (Array.isArray(data.lines)) {
+          const session = terminalManager.current.getSession(key);
+          session.lines = data.lines;
+          setSessionVersion(v => v + 1);
+        }
+        setLoadingSessions(ls => ({ ...ls, [key]: false }));
+      });
     }
   };
 
@@ -226,22 +261,19 @@ export const ServerManagerPage: React.FC = () => {
     setShowServerModal(false);
     loadServerProfiles();
   };
-  const handleSaveServerProfiles = async (profiles: ServerProfile[]) => {
-    try {
-      const res = await fetch('/api/profiles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profiles),
-      });
-      if (res.ok) {
+  const handleSaveServerProfiles = (profiles: ServerProfile[]) => {
+    if (!wsRef.current || wsRef.current.readyState !== 1) {
+      setError('WebSocket not connected');
+      return;
+    }
+    wsRequest(wsRef.current, { type: 'saveProfiles', profiles }, (msg) => {
+      if (msg.error) {
+        setError('Failed to save server profiles');
+      } else {
         setServerProfiles(profiles);
         setError(null);
-      } else {
-        setError('Failed to save server profiles');
       }
-    } catch (e) {
-      setError('Failed to save server profiles');
-    }
+    });
   };
 
   // Error clear
@@ -392,7 +424,7 @@ export const ServerManagerPage: React.FC = () => {
               selectedKey={selectedKey}
               onTabSelect={handleTabSelect}
               onManageServers={handleManageServers}
-              terminalManager={terminalManager}
+              terminalManager={terminalManager.current}
               sessionVersion={sessionVersion}
               onSendCommand={handleSendCommand}
               onClearLog={(key) => {

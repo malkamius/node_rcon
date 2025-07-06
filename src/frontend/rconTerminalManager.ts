@@ -26,11 +26,28 @@ export class RconTerminalManager {
   }
   private sessions: Map<string, TerminalSession> = new Map();
   private maxLines: number;
+  private wsRef: React.MutableRefObject<WebSocket | null>;
 
-  constructor(maxLines: number = 100) {
+  constructor(maxLines: number = 100, wsRef: React.MutableRefObject<WebSocket | null>) {
     this.maxLines = maxLines;
+    this.wsRef = wsRef;
   }
 
+  async restoreSessionLines(key: string) {
+    // Use persistent WebSocket connection to get session lines
+    return new Promise<void>((resolve) => {
+      const ws = this.wsRef.current;
+      if (!ws || ws.readyState !== 1) return resolve();
+      this.wsRequest(ws, { type: 'getSessionLines', key }, (data : any) => {
+        if (Array.isArray(data.lines)) {
+          const session = this.getSession(key);
+          session.lines = data.lines;
+        }
+        resolve();
+      });
+    });
+  }
+  
   getSession(key: string): TerminalSession {
     if (!this.sessions.has(key)) {
       this.sessions.set(key, { key, lines: [] });
@@ -40,20 +57,7 @@ export class RconTerminalManager {
     return this.sessions.get(key)!;
   }
 
-  async restoreSessionLines(key: string) {
-    try {
-      const res = await fetch(`/api/session-lines/${encodeURIComponent(key)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.lines)) {
-          const session = this.getSession(key);
-          session.lines = data.lines;
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
+  
 
   /**
    * Appends a line to the session. If a guid and type are provided, output lines are inserted after the matching command.
@@ -90,13 +94,38 @@ export class RconTerminalManager {
     // }
   }
 
-  clear(key: string) {
+  wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, timeout = 8000) {
+  if (!ws || ws.readyState !== 1) {
+    cb({ error: 'WebSocket not connected' });
+    return;
+  }
+  const requestId = 'req' + Math.random().toString(36).slice(2);
+  payload.requestId = requestId;
+  const handleMessage = (event: MessageEvent) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.requestId === requestId) {
+        ws.removeEventListener('message', handleMessage);
+        cb(msg);
+      }
+    } catch {}
+  };
+  ws.addEventListener('message', handleMessage);
+  ws.send(JSON.stringify(payload));
+  // setTimeout(() => {
+  //   ws.removeEventListener('message', handleMessage);
+  //   cb({ error: 'WebSocket request timeout' });
+  // }, timeout);
+}
+  clear(key: string, ws: WebSocket | null) {
     if (this.sessions.has(key)) {
       this.sessions.get(key)!.lines = [];
     }
-    // Optionally clear on backend too
-    fetch(`/api/session-lines/${encodeURIComponent(key)}`, {
-      method: 'DELETE'
-    }).catch(() => {});
+    // Clear on backend via WebSocket
+    if (ws && ws.readyState === 1) {
+      this.wsRequest(ws, { type: 'clearSessionLines', key }, () => {});
+    }
   }
+// --- WebSocket request/response utility (copy from ServerManagerPage) ---
+   
 }

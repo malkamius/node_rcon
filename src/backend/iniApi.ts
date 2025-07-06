@@ -1,3 +1,25 @@
+// Exported async functions for WebSocket backend usage
+/**
+ * Get INI file as object for a given profile and file name
+ */
+export async function getIni(profile: any, file: string): Promise<any> {
+  const iniPath = getIniPath(profile, file);
+  if (!fs.existsSync(iniPath)) return {};
+  const iniRaw = fs.readFileSync(iniPath, 'utf-8');
+  return ini.decode(iniRaw);
+}
+
+/**
+ * Save INI object to file for a given profile and file name
+ */
+export async function saveIni(profile: any, file: string, iniObj: any): Promise<void> {
+  const iniPath = getIniPath(profile, file);
+  const pathMod = require('path');
+  const iniMod = require('./ark-ini');
+  const iniStr = iniMod.encode(iniObj, { whitespace: false });
+  fs.mkdirSync(pathMod.dirname(iniPath), { recursive: true });
+  fs.writeFileSync(iniPath, iniStr, 'utf-8');
+}
 import express from 'express';
 import path from 'path';
 import fs from 'fs';

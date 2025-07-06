@@ -1,3 +1,27 @@
+// --- WebSocket request/response utility (copy from ServerManagerPage) ---
+function wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, timeout = 8000) {
+  if (!ws || ws.readyState !== 1) {
+    cb({ error: 'WebSocket not connected' });
+    return;
+  }
+  const requestId = 'req' + Math.random().toString(36).slice(2);
+  payload.requestId = requestId;
+  const handleMessage = (event: MessageEvent) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.requestId === requestId) {
+        ws.removeEventListener('message', handleMessage);
+        cb(msg);
+      }
+    } catch {}
+  };
+  ws.addEventListener('message', handleMessage);
+  ws.send(JSON.stringify(payload));
+  setTimeout(() => {
+    ws.removeEventListener('message', handleMessage);
+    cb({ error: 'WebSocket request timeout' });
+  }, timeout);
+}
 import React, { useState, useEffect } from 'react';
 import { loadArkSettingsTemplate } from './arkSettingsTemplateLoader';
 
@@ -21,7 +45,7 @@ interface ServerConfigTabProps {
   onManageServers: () => void;
 }
 
-export const ServerConfigTab: React.FC<ServerConfigTabProps> = ({ serverProfiles, statusMap, selectedKey, onTabSelect, onManageServers }) => {
+export const ServerConfigTab: React.FC<ServerConfigTabProps & { ws?: WebSocket | null }> = ({ serverProfiles, statusMap, selectedKey, onTabSelect, onManageServers, ws }) => {
   const [editingFile, setEditingFile] = useState<'Game.ini' | 'GameUserSettings.ini' | null>(null);
   const [iniData, setIniData] = useState<any>(null); // parsed ini data
   const [formState, setFormState] = useState<any>({});
@@ -54,12 +78,17 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps> = ({ serverProfiles
 
   // Fetch INI data from backend
   const fetchIni = async (file: 'Game.ini' | 'GameUserSettings.ini') => {
-    if (!selectedProfile || !settingsTemplate) return;
+    if (!selectedProfile || !settingsTemplate || !ws) return;
     setLoading(true);
-    try {
-      const idx = profiles.findIndex(p => `${p.host}:${p.port}` === selectedKey);
-      const res = await fetch(`/api/server-ini/${idx}/${file}`);
-      const iniObj = await res.json();
+    const idx = profiles.findIndex(p => `${p.host}:${p.port}` === selectedKey);
+    wsRequest(ws, { type: 'getServerIni', idx, file }, (resp) => {
+      if (resp.error || !resp.iniObj) {
+        setIniData({});
+        setFormState({});
+        setLoading(false);
+        return;
+      }
+      const iniObj = resp.iniObj;
       setIniData(iniObj);
       // Helper to get nested value from iniObj using period-separated section name
       function getNestedSection(obj: any, sectionPath: string) {
@@ -108,11 +137,8 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps> = ({ serverProfiles
         }
       }
       setFormState(newFormState);
-    } catch (e) {
-      setIniData({});
-      setFormState({});
-    }
-    setLoading(false);
+      setLoading(false);
+    });
   };
 
   const handleEditFile = (file: 'Game.ini' | 'GameUserSettings.ini') => {
@@ -137,7 +163,7 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps> = ({ serverProfiles
 
   // Save INI data to backend
   const handleSave = async () => {
-    if (!selectedProfile || !editingFile || !settingsTemplate) return;
+    if (!selectedProfile || !editingFile || !settingsTemplate || !ws) return;
     setSaving(true);
     setError(null);
     // Build iniObj from formState, supporting nested/period-separated section names
@@ -194,28 +220,16 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps> = ({ serverProfiles
         }
       }
     }
-    try {
-      const idx = profiles.findIndex(p => `${p.host}:${p.port}` === selectedKey);
-      const res = await fetch(`/api/server-ini/${idx}/${editingFile}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(iniObj),
-      });
-      if (!res.ok) {
-        let msg = 'Failed to save INI file';
-        try {
-          const data = await res.json();
-          if (data && data.error) msg = data.error;
-        } catch {}
-        setError(msg);
+    const idx = profiles.findIndex(p => `${p.host}:${p.port}` === selectedKey);
+    wsRequest(ws, { type: 'saveServerIni', idx, file: editingFile, iniObj }, (resp) => {
+      if (resp.error) {
+        setError(resp.error || 'Failed to save INI file');
         setSaving(false);
         return;
       }
       setEditingFile(null);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to save INI file');
-    }
-    setSaving(false);
+      setSaving(false);
+    });
   };
 
   const handleCancel = () => {
@@ -241,47 +255,31 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps> = ({ serverProfiles
           <button
             disabled={running || !selectedProfile}
             style={{ background: running ? '#444' : '#2d4', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 16px', fontWeight: 600, cursor: running ? 'not-allowed' : 'pointer' }}
-            onClick={async () => {
-              if (!selectedProfile) return;
+            onClick={() => {
+              if (!selectedProfile || !ws) return;
               const key = `${selectedProfile.host}:${selectedProfile.port}`;
-              try {
-                const res = await fetch(`/api/start-server/${encodeURIComponent(key)}`, { method: 'POST' });
-                if (!res.ok) {
-                  let msg = 'Failed to start server';
-                  try {
-                    const data = await res.json();
-                    if (data && data.error) msg = data.error;
-                  } catch {}
-                  showMsg('error', msg);
+              wsRequest(ws, { type: 'startServer', key }, (resp) => {
+                if (resp.error) {
+                  showMsg('error', resp.error || 'Failed to start server');
                   return;
                 }
                 showMsg('success', 'Started');
-              } catch (e: any) {
-                showMsg('error', e?.message || 'Failed to start');
-              }
+              });
             }}
           >Start</button>
           <button
             disabled={!running || !selectedProfile}
             style={{ background: !running ? '#444' : '#d44', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 16px', fontWeight: 600, cursor: !running ? 'not-allowed' : 'pointer' }}
-            onClick={async () => {
-              if (!selectedProfile) return;
+            onClick={() => {
+              if (!selectedProfile || !ws) return;
               const key = `${selectedProfile.host}:${selectedProfile.port}`;
-              try {
-                const res = await fetch(`/api/stop-server/${encodeURIComponent(key)}`, { method: 'POST' });
-                if (!res.ok) {
-                  let msg = 'Failed to stop server';
-                  try {
-                    const data = await res.json();
-                    if (data && data.error) msg = data.error;
-                  } catch {}
-                  showMsg('error', msg);
+              wsRequest(ws, { type: 'stopServer', key }, (resp) => {
+                if (resp.error) {
+                  showMsg('error', resp.error || 'Failed to stop server');
                   return;
                 }
                 showMsg('success', 'Stopped');
-              } catch (e: any) {
-                showMsg('error', e?.message || 'Failed to stop');
-              }
+              });
             }}
           >Stop</button>
           {/* Inline feedback message */}

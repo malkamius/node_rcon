@@ -596,6 +596,7 @@ processManager.startPeriodicStatusCheck(1000);
 // WebSocket: send status updates to clients
 // On WebSocket connection, send all session logs to the client
 wss.on('connection', (ws) => {
+        
   (async () => {
     // Broadcast baseInstalls to all clients
     function broadcastBaseInstalls() {
@@ -607,10 +608,113 @@ wss.on('connection', (ws) => {
       });
     }
     ws.on('message', async (data) => {
+       
       try {
         const msg = JSON.parse(data.toString());
+         // --- Process status (for refactored frontend) ---
+        if (msg.type === 'getProcessStatus') {
+          try {
+            const profiles = getProfiles();
+            const status = profiles.map((profile: any) => {
+              const key = `${profile.host}:${profile.port}`;
+              const status = processManager.getStatus(key);
+              const proc = (processManager as any).processes?.[key];
+              return {
+                key,
+                running: !!proc,
+                startTime: proc ? proc.startTime : null,
+                manuallyStopped: !!profile.manuallyStopped,
+                autoStart: !!profile.autoStart,
+                baseInstallId: profile.baseInstallId || null
+              };
+            });
+            ws.send(JSON.stringify({ type: 'getProcessStatus', status, requestId: msg.requestId }));
+          } catch (e: any) {
+            ws.send(JSON.stringify({ type: 'getProcessStatus', error: e?.message || 'Failed to get process status', requestId: msg.requestId }));
+          }
+          return;
+        }
+        // --- INI/config management (for refactored frontend) ---
+        else if (msg.type === 'getServerIni' && typeof msg.idx === 'number' && typeof msg.file === 'string') {
+          try {
+            const profiles = getProfiles();
+            const profile = profiles[msg.idx];
+            if (!profile) throw new Error('Profile not found');
+            // Use iniApi to get the INI data (simulate Express handler)
+            const iniApiModule = require('./iniApi');
+            if (typeof iniApiModule.getIni === 'function') {
+              iniApiModule.getIni(profile, msg.file).then((iniObj: any) => {
+                ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, iniObj, requestId: msg.requestId }));
+              }).catch((e: any) => {
+                ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, error: e?.message || 'Failed to load INI', requestId: msg.requestId }));
+              });
+            } else {
+              // fallback: read and decode directly
+              const path = require('path');
+              const fs = require('fs');
+              const ini = require('./ark-ini');
+              const iniPath = path.join(profile.directory, 'ShooterGame', 'Saved', 'Config', 'WindowsServer', msg.file);
+              if (!fs.existsSync(iniPath)) {
+                ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, iniObj: {}, requestId: msg.requestId }));
+              } else {
+                const iniRaw = fs.readFileSync(iniPath, 'utf-8');
+                const iniObj = ini.decode(iniRaw);
+                ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, iniObj, requestId: msg.requestId }));
+              }
+            }
+          } catch (e: any) {
+            ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, error: e?.message || 'Failed to load INI', requestId: msg.requestId }));
+          }
+          return;
+        }
+        else if (msg.type === 'saveServerIni' && typeof msg.idx === 'number' && typeof msg.file === 'string' && typeof msg.iniObj === 'object') {
+          try {
+            const profiles = getProfiles();
+            const profile = profiles[msg.idx];
+            if (!profile) throw new Error('Profile not found');
+            const iniApiModule = require('./iniApi');
+            if (typeof iniApiModule.saveIni === 'function') {
+              iniApiModule.saveIni(profile, msg.file, msg.iniObj).then(() => {
+                ws.send(JSON.stringify({ type: 'saveServerIni', ok: true, requestId: msg.requestId }));
+              }).catch((e: any) => {
+                ws.send(JSON.stringify({ type: 'saveServerIni', error: e?.message || 'Failed to save INI', requestId: msg.requestId }));
+              });
+            } else {
+              // fallback: encode and write directly
+              const path = require('path');
+              const fs = require('fs');
+              const ini = require('./ark-ini');
+              const iniPath = path.join(profile.directory, 'ShooterGame', 'Saved', 'Config', 'WindowsServer', msg.file);
+              const iniStr = ini.encode(msg.iniObj, { whitespace: false });
+              fs.mkdirSync(path.dirname(iniPath), { recursive: true });
+              fs.writeFileSync(iniPath, iniStr, 'utf-8');
+              ws.send(JSON.stringify({ type: 'saveServerIni', ok: true, requestId: msg.requestId }));
+            }
+          } catch (e: any) {
+            ws.send(JSON.stringify({ type: 'saveServerIni', error: e?.message || 'Failed to save INI', requestId: msg.requestId }));
+          }
+          return;
+        }
+        else if (msg.type === 'startServer' && typeof msg.key === 'string') {
+          try {
+            await processManager.start(msg.key);
+            ws.send(JSON.stringify({ type: 'startServer', ok: true, requestId: msg.requestId }));
+          } catch (e: any) {
+            ws.send(JSON.stringify({ type: 'startServer', error: e?.message || 'Failed to start server', requestId: msg.requestId }));
+          }
+          return;
+        }
+        if (msg.type === 'stopServer' && typeof msg.key === 'string') {
+          try {
+            await processManager.stop(msg.key);
+            ws.send(JSON.stringify({ type: 'stopServer', ok: true, requestId: msg.requestId }));
+          } catch (e: any) {
+            ws.send(JSON.stringify({ type: 'stopServer', error: e?.message || 'Failed to stop server', requestId: msg.requestId }));
+          }
+          return;
+        }
         // --- BaseInstallManager WebSocket API ---
-        if (msg.type === 'getBaseInstalls') {
+        else if (msg.type === 'getBaseInstalls') {
           ws.send(JSON.stringify({ type: 'baseInstalls', baseInstalls: config.baseInstalls || [], requestId: msg.requestId }));
           return;
         } else if (msg.type === 'addBaseInstall') {
@@ -669,14 +773,44 @@ wss.on('connection', (ws) => {
           broadcastBaseInstalls();
           return;
         }
-        // ...existing code...
+        // --- Profiles management (for refactored frontend) ---
+        if (msg.type === 'getProfiles') {
+          try {
+            const profiles = getProfiles();
+            ws.send(JSON.stringify({ type: 'getProfiles', profiles, requestId: msg.requestId }));
+          } catch (e) {
+            ws.send(JSON.stringify({ type: 'getProfiles', error: 'Failed to load profiles', requestId: msg.requestId }));
+          }
+          return;
+        }
+        if (msg.type === 'saveProfiles' && Array.isArray(msg.profiles)) {
+          try {
+            saveProfiles(msg.profiles);
+            ws.send(JSON.stringify({ type: 'saveProfiles', ok: true, requestId: msg.requestId }));
+          } catch (e) {
+            ws.send(JSON.stringify({ type: 'saveProfiles', error: 'Failed to save profiles', requestId: msg.requestId }));
+          }
+          return;
+        }
+        // --- Session lines (for refactored frontend) ---
+        if (msg.type === 'getSessionLines' && typeof msg.key === 'string') {
+          try {
+            if (!sessionLines[msg.key]) {
+              sessionLines[msg.key] = loadSessionLinesFromDisk(msg.key);
+            }
+            ws.send(JSON.stringify({ type: 'getSessionLines', key: msg.key, lines: sessionLines[msg.key] || [], requestId: msg.requestId }));
+          } catch (e) {
+            ws.send(JSON.stringify({ type: 'getSessionLines', key: msg.key, lines: [], requestId: msg.requestId }));
+          }
+          return;
+        }
         if (msg.type === 'clearSessionLines' && msg.key) {
           sessionLines[msg.key] = [];
           saveSessionLinesToDisk(msg.key, []);
           // Broadcast empty log to all clients
           broadcast('sessionLine', { key: msg.key, line: null });
           // Also broadcast the full (empty) log for the key
-          broadcast('sessionLines', { key: msg.key });
+          broadcast('getSessionLines', { key: msg.key, lines: [] });
           return;
         }
         if (msg.type === 'command' && msg.key && typeof msg.command === 'string') {

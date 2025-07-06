@@ -1,4 +1,32 @@
 ## 2025-07-06
+- Migrated all session line and process status frontend fetch calls (`rconTerminalManager.ts`, `processStatusApi.ts`) to use the persistent WebSocket connection (`wsRequest`).
+- Added WebSocket backend handler for `getProcessStatus` to support process status requests from the frontend.
+- All session line actions (get, clear) and process status are now handled via the main WebSocket connection.
+- Next steps: Review and migrate any remaining frontend fetch calls to WebSocket as needed.
+## 2025-07-06
+- Completed migration of all INI/config and process control actions in `ServerConfigTab.tsx` to use the shared WebSocket connection (`wsRequest`).
+- Backend (`server.ts`) now supports `getServerIni`, `saveServerIni`, `startServer`, and `stopServer` WebSocket message types for these actions.
+- Confirmed requirements and plan files for server config/INI management are up to date for this feature scope.
+- Next steps: Continue migrating any remaining frontend fetch calls to WebSocket and add backend handlers as needed.
+## 2024-06-09
+- Added WebSocket backend handlers in `server.ts` for `getServerIni`, `saveServerIni`, `startServer`, and `stopServer` to support frontend migration from fetch to WebSocket for INI/config and process control actions.
+- Added `getIni` and `saveIni` async exports to `iniApi.ts` for direct backend usage by WebSocket handlers.
+- Next steps: Continue migrating remaining frontend fetch calls to use the shared WebSocket and add backend handlers as needed.
+
+## 2025-07-06
+- Frontend: Refactored `ServerManagerPage.tsx` to use the main WebSocket connection for all backend API calls to `/api/profiles` (get/save) and `/api/session-lines/:key` (get). Added a `wsRequest` utility for request/response messaging over WebSocket. Removed all `fetch` calls for these endpoints from this file.
+- Frontend: Refactored `ServerManagementModal.tsx` to use the parent-provided `onSave` prop (which uses the shared WebSocket connection) for saving server profiles. Removed all direct `fetch` calls from this file. Profile management is now fully WebSocket-based and consistent with the rest of the app.
+- This continues the migration of all frontend fetch calls to use the main WebSocket connection managed by the app. No backend changes were required for this step.
+
+**Next steps:**
+- Refactor the next frontend file (`ServerConfigTab.tsx`) to use the WebSocket for INI/config management actions.
+- Continue migrating all fetch calls in `src/frontend/**` to use the shared WebSocket connection.
+- Update requirements and plan files if the feature scope or implementation details change.
+
+**Next steps:**
+- Refactor the next frontend file (`ServerManagementModal.tsx`) to use the WebSocket for profile management actions.
+- Continue migrating all fetch calls in `src/frontend/**` to use the shared WebSocket connection.
+- Update requirements and plan files if the feature scope or implementation details change.
 - Frontend: Refactored `RconClientWindow` to use the shared application WebSocket for all actions, including clearing the log. Removed its own WebSocket setup/cleanup logic. The clear log action is now delegated to the parent via a new `onClearLog` prop, which uses the main WebSocket connection managed by `ServerManagerPage`. This ensures consistent disconnect/reconnect handling and avoids duplicate WebSocket connections.
 
 **Next steps:**
