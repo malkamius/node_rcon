@@ -35,6 +35,7 @@ interface RconClientAppProps {
   terminalManager?: RconTerminalManager;
   sessionVersion?: number;
   onSendCommand?: (key: string, command: string, guid: string) => void;
+  onClearLog?: (key: string) => void;
   currentPlayers?: Record<string, { players: string[]; lastUpdate: number | null }>;
   disabled?: boolean; // If true, disables input and send button
 }
@@ -52,11 +53,11 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   terminalManager = defaultTerminalManager,
   sessionVersion = 0,
   onSendCommand,
+  onClearLog,
   currentPlayers = {},
   disabled = false,
 }) => {
   const [command, setCommand] = useState('');
-  const wsRef = useRef<WebSocket | null>(null);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const [playersWidth, setPlayersWidth] = useState<number>(240);
@@ -76,26 +77,10 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
     }
   }, [selectedProfile]);
 
-  // Setup WebSocket for clear log
-  useEffect(() => {
-    if (!selectedKey) return;
-    if (wsRef.current) return;
-    // Use same protocol as page
-    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${wsProto}://${window.location.host}`;
-    const ws = new window.WebSocket(wsUrl);
-    wsRef.current = ws;
-    ws.onopen = () => {};
-    ws.onclose = () => { wsRef.current = null; };
-    return () => {
-      ws.close();
-      wsRef.current = null;
-    };
-  }, [selectedKey]);
-
+  // Remove local WebSocket logic. Use onClearLog prop for clear log action.
   const handleClearLog = () => {
-    if (!selectedKey || !wsRef.current || wsRef.current.readyState !== 1) return;
-    wsRef.current.send(JSON.stringify({ type: 'clearSessionLines', key: selectedKey }));
+    if (!selectedKey || !onClearLog) return;
+    onClearLog(selectedKey);
   };
   const session = selectedKey ? terminalManager.getSession(selectedKey) : null;
   const procStatus = selectedKey ? statusMap[selectedKey] : undefined;

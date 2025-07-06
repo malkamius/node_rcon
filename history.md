@@ -1,3 +1,10 @@
+## 2025-07-06
+- Frontend: Refactored `RconClientWindow` to use the shared application WebSocket for all actions, including clearing the log. Removed its own WebSocket setup/cleanup logic. The clear log action is now delegated to the parent via a new `onClearLog` prop, which uses the main WebSocket connection managed by `ServerManagerPage`. This ensures consistent disconnect/reconnect handling and avoids duplicate WebSocket connections.
+
+**Next steps:**
+- Test RCON terminal log clearing and ensure disconnect modal appears as expected on backend disconnects.
+- Monitor for any regressions in RCON command or log handling after WebSocket refactor.
+
 ## 2025-07-05
 - Backend: Updated `Install-Instance.ps1` so that `Mods` and `ModsUserData` folders under `ShooterGame\Binaries\Win64\ShooterGame` are now always created as real folders (not junctioned or symlinked) in new server instances. These folders are excluded from the dynamic linking process and are created as standard directories in the instance.
 

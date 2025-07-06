@@ -597,9 +597,79 @@ processManager.startPeriodicStatusCheck(1000);
 // On WebSocket connection, send all session logs to the client
 wss.on('connection', (ws) => {
   (async () => {
+    // Broadcast baseInstalls to all clients
+    function broadcastBaseInstalls() {
+      const payload = JSON.stringify({ type: 'baseInstallsUpdated', baseInstalls: config.baseInstalls || [] });
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1) {
+          client.send(payload);
+        }
+      });
+    }
     ws.on('message', async (data) => {
       try {
         const msg = JSON.parse(data.toString());
+        // --- BaseInstallManager WebSocket API ---
+        if (msg.type === 'getBaseInstalls') {
+          ws.send(JSON.stringify({ type: 'baseInstalls', baseInstalls: config.baseInstalls || [], requestId: msg.requestId }));
+          return;
+        } else if (msg.type === 'addBaseInstall') {
+          const { id, path: installPath, version, lastUpdated } = msg.data || {};
+          if (!id || !installPath) {
+            ws.send(JSON.stringify({ ok: false, error: 'id and path are required', requestId: msg.requestId }));
+            return;
+          }
+          config.baseInstalls = config.baseInstalls || [];
+          if (config.baseInstalls.some((b: any) => b.id === id || b.path === installPath)) {
+            ws.send(JSON.stringify({ ok: false, error: 'Base install with this id or path already exists', requestId: msg.requestId }));
+            return;
+          }
+          config.baseInstalls.push({ id, path: installPath, version: version || '', lastUpdated: lastUpdated || new Date().toISOString() });
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+          auditLog('addBaseInstall', { id, path: installPath, version });
+          ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
+          broadcastBaseInstalls();
+          return;
+        } else if (msg.type === 'updateBaseInstall') {
+          const { id, data } = msg;
+          if (!id || !data) {
+            ws.send(JSON.stringify({ ok: false, error: 'id and data required', requestId: msg.requestId }));
+            return;
+          }
+          config.baseInstalls = config.baseInstalls || [];
+          const idx = config.baseInstalls.findIndex((b: any) => b.id === id);
+          if (idx === -1) {
+            ws.send(JSON.stringify({ ok: false, error: 'Base install not found', requestId: msg.requestId }));
+            return;
+          }
+          if (data.path && config.baseInstalls.some((b: any, i: number) => b.path === data.path && i !== idx)) {
+            ws.send(JSON.stringify({ ok: false, error: 'Another base install with this path already exists', requestId: msg.requestId }));
+            return;
+          }
+          if (data.path) config.baseInstalls[idx].path = data.path;
+          if (data.version) config.baseInstalls[idx].version = data.version;
+          if (data.lastUpdated) config.baseInstalls[idx].lastUpdated = data.lastUpdated;
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+          auditLog('updateBaseInstall', { id, path: data.path, version: data.version });
+          ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
+          broadcastBaseInstalls();
+          return;
+        } else if (msg.type === 'removeBaseInstall') {
+          const { id } = msg;
+          config.baseInstalls = config.baseInstalls || [];
+          const idx = config.baseInstalls.findIndex((b: any) => b.id === id);
+          if (idx === -1) {
+            ws.send(JSON.stringify({ ok: false, error: 'Base install not found', requestId: msg.requestId }));
+            return;
+          }
+          config.baseInstalls.splice(idx, 1);
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+          auditLog('removeBaseInstall', { id });
+          ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
+          broadcastBaseInstalls();
+          return;
+        }
+        // ...existing code...
         if (msg.type === 'clearSessionLines' && msg.key) {
           sessionLines[msg.key] = [];
           saveSessionLinesToDisk(msg.key, []);

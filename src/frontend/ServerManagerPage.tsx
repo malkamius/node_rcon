@@ -395,6 +395,10 @@ export const ServerManagerPage: React.FC = () => {
               terminalManager={terminalManager}
               sessionVersion={sessionVersion}
               onSendCommand={handleSendCommand}
+              onClearLog={(key) => {
+                if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+                wsRef.current.send(JSON.stringify({ type: 'clearSessionLines', key }));
+              }}
               disabled={!!loadingSessions[selectedKey]}
             />
           ) : activity === 'config' ? (
@@ -407,7 +411,9 @@ export const ServerManagerPage: React.FC = () => {
             />
           ) : activity === 'baseinstalls' ? (
             <BaseInstallManager 
-            handleUpdate={handleUpdateBaseInstall}/>
+              handleUpdate={handleUpdateBaseInstall}
+              ws={wsRef.current}
+            />
           ) : null}
         </div>
       </div>
