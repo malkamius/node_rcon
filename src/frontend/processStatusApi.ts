@@ -19,10 +19,15 @@ function wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, 
   }
   const requestId = 'req' + Math.random().toString(36).slice(2);
   payload.requestId = requestId;
+  let timeoutTimer = setTimeout(() => {
+    ws.removeEventListener('message', handleMessage);
+    cb({ error: 'WebSocket request timeout' });
+  }, timeout);
   const handleMessage = (event: MessageEvent) => {
     try {
       const msg = JSON.parse(event.data);
       if (msg.requestId === requestId) {
+        clearTimeout(timeoutTimer);
         ws.removeEventListener('message', handleMessage);
         cb(msg);
       }
@@ -30,8 +35,5 @@ function wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, 
   };
   ws.addEventListener('message', handleMessage);
   ws.send(JSON.stringify(payload));
-  setTimeout(() => {
-    ws.removeEventListener('message', handleMessage);
-    cb({ error: 'WebSocket request timeout' });
-  }, timeout);
+  
 }

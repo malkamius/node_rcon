@@ -20,9 +20,9 @@ function wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, 
     try {
       const msg = JSON.parse(event.data);
       if (msg.requestId === requestId) {
+        clearTimeout(timeoutTimer);
         ws.removeEventListener('message', handleMessage);
         cb(msg);
-        clearTimeout(timeoutTimer);
       }
     } catch {}
   };
