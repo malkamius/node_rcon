@@ -440,6 +440,7 @@ export const ServerManagerPage: React.FC = () => {
               selectedKey={selectedKey}
               onTabSelect={handleTabSelect}
               onManageServers={handleManageServers}
+              wsRef={wsRef}
             />
           ) : activity === 'baseinstalls' ? (
             <BaseInstallManager 

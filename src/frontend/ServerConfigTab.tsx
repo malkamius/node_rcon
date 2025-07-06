@@ -1,3 +1,29 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+
+
+import { loadArkSettingsTemplate } from './arkSettingsTemplateLoader';
+
+interface ServerProfile {
+  name: string;
+  host: string;
+  port: number;
+  password: string;
+  game?: string;
+  features?: any;
+  layout?: any;
+  directory?: string;
+}
+
+interface ServerConfigTabProps {
+  serverProfiles: ServerProfile[];
+  // statusMap: key -> { running, startTime, manuallyStopped, autoStart, baseInstallId }
+  statusMap: Record<string, any>;
+  selectedKey: string | null;
+  onTabSelect: (key: string) => void;
+  onManageServers: () => void;
+  wsRef: React.MutableRefObject<WebSocket | null>;
+}
+
 // --- WebSocket request/response utility (copy from ServerManagerPage) ---
 function wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, timeout = 8000) {
   if (!ws || ws.readyState !== 1) {
@@ -25,30 +51,8 @@ function wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, 
   ws.send(JSON.stringify(payload));
   
 }
-import React, { useState, useEffect } from 'react';
-import { loadArkSettingsTemplate } from './arkSettingsTemplateLoader';
 
-interface ServerProfile {
-  name: string;
-  host: string;
-  port: number;
-  password: string;
-  game?: string;
-  features?: any;
-  layout?: any;
-  directory?: string;
-}
-
-interface ServerConfigTabProps {
-  serverProfiles: ServerProfile[];
-  // statusMap: key -> { running, startTime, manuallyStopped, autoStart, baseInstallId }
-  statusMap: Record<string, any>;
-  selectedKey: string | null;
-  onTabSelect: (key: string) => void;
-  onManageServers: () => void;
-}
-
-export const ServerConfigTab: React.FC<ServerConfigTabProps & { ws?: WebSocket | null }> = ({ serverProfiles, statusMap, selectedKey, onTabSelect, onManageServers, ws }) => {
+export const ServerConfigTab: React.FC<ServerConfigTabProps & { wsRef?: React.MutableRefObject<WebSocket | null> }> = ({ serverProfiles, statusMap, selectedKey, onTabSelect, onManageServers, wsRef }) => {
   const [editingFile, setEditingFile] = useState<'Game.ini' | 'GameUserSettings.ini' | null>(null);
   const [iniData, setIniData] = useState<any>(null); // parsed ini data
   const [formState, setFormState] = useState<any>({});
@@ -81,10 +85,11 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps & { ws?: WebSocket |
 
   // Fetch INI data from backend
   const fetchIni = async (file: 'Game.ini' | 'GameUserSettings.ini') => {
-    if (!selectedProfile || !settingsTemplate || !ws) return;
+    if (!selectedProfile || !settingsTemplate || !wsRef.current) return;
     setLoading(true);
     const idx = profiles.findIndex(p => `${p.host}:${p.port}` === selectedKey);
-    wsRequest(ws, { type: 'getServerIni', idx, file }, (resp) => {
+
+    wsRequest(wsRef.current, { type: 'getServerIni', idx, file }, (resp) => {
       if (resp.error || !resp.iniObj) {
         setIniData({});
         setFormState({});
@@ -166,7 +171,7 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps & { ws?: WebSocket |
 
   // Save INI data to backend
   const handleSave = async () => {
-    if (!selectedProfile || !editingFile || !settingsTemplate || !ws) return;
+    if (!selectedProfile || !editingFile || !settingsTemplate || !wsRef.current) return;
     setSaving(true);
     setError(null);
     // Build iniObj from formState, supporting nested/period-separated section names
@@ -224,7 +229,7 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps & { ws?: WebSocket |
       }
     }
     const idx = profiles.findIndex(p => `${p.host}:${p.port}` === selectedKey);
-    wsRequest(ws, { type: 'saveServerIni', idx, file: editingFile, iniObj }, (resp) => {
+    wsRequest(wsRef.current, { type: 'saveServerIni', idx, file: editingFile, iniObj }, (resp) => {
       if (resp.error) {
         setError(resp.error || 'Failed to save INI file');
         setSaving(false);
@@ -259,9 +264,9 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps & { ws?: WebSocket |
             disabled={running || !selectedProfile}
             style={{ background: running ? '#444' : '#2d4', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 16px', fontWeight: 600, cursor: running ? 'not-allowed' : 'pointer' }}
             onClick={() => {
-              if (!selectedProfile || !ws) return;
+              if (!selectedProfile || !wsRef.current) return;
               const key = `${selectedProfile.host}:${selectedProfile.port}`;
-              wsRequest(ws, { type: 'startServer', key }, (resp) => {
+              wsRequest(wsRef.current, { type: 'startServer', key }, (resp) => {
                 if (resp.error) {
                   showMsg('error', resp.error || 'Failed to start server');
                   return;
@@ -274,9 +279,9 @@ export const ServerConfigTab: React.FC<ServerConfigTabProps & { ws?: WebSocket |
             disabled={!running || !selectedProfile}
             style={{ background: !running ? '#444' : '#d44', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 16px', fontWeight: 600, cursor: !running ? 'not-allowed' : 'pointer' }}
             onClick={() => {
-              if (!selectedProfile || !ws) return;
+              if (!selectedProfile || !wsRef.current) return;
               const key = `${selectedProfile.host}:${selectedProfile.port}`;
-              wsRequest(ws, { type: 'stopServer', key }, (resp) => {
+              wsRequest(wsRef.current, { type: 'stopServer', key }, (resp) => {
                 if (resp.error) {
                   showMsg('error', resp.error || 'Failed to stop server');
                   return;
