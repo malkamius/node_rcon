@@ -1,3 +1,8 @@
+# WebSocket Message Handler Refactor (2025-07-06)
+- WebSocket message handling must be organized by domain in handler classes under `src/backend/handlers/`.
+- Each handler class must expose a `handlers` map of message type to handler function.
+- `server.ts` must instantiate all handler classes and merge their handler maps for dispatch.
+- Message type to handler mapping must be documented in `handlers/README.md`.
 # Node.js RCON Manager Project Requirements
 
 ## 2025-06-17: New/Enhanced Features

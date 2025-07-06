@@ -1,0 +1,95 @@
+import { WebSocket } from 'ws';
+
+export class BaseInstallHandler {
+  constructor(private context: any) {}
+
+  handlers = {
+    getBaseInstalls: async (ws: WebSocket, msg: any) => {
+      const { config } = this.context;
+      ws.send(JSON.stringify({ type: 'baseInstalls', baseInstalls: config.baseInstalls || [], requestId: msg.requestId }));
+    },
+    addBaseInstall: async (ws: WebSocket, msg: any) => {
+      const { config, fs, configPath, auditLog, broadcast } = this.context;
+      const { id, path: installPath, version, lastUpdated } = msg.data || {};
+      if (!id || !installPath) {
+        ws.send(JSON.stringify({ ok: false, error: 'id and path are required', requestId: msg.requestId }));
+        return;
+      }
+      config.baseInstalls = config.baseInstalls || [];
+      if (config.baseInstalls.some((b: any) => b.id === id || b.path === installPath)) {
+        ws.send(JSON.stringify({ ok: false, error: 'Base install with this id or path already exists', requestId: msg.requestId }));
+        return;
+      }
+      config.baseInstalls.push({ id, path: installPath, version: version || '', lastUpdated: lastUpdated || new Date().toISOString() });
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+      auditLog('addBaseInstall', { id, path: installPath, version });
+      ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
+      broadcast('baseInstallsUpdated', { baseInstalls: config.baseInstalls });
+    },
+    updateBaseInstall: async (ws: WebSocket, msg: any) => {
+      const { config, fs, configPath, auditLog, broadcast } = this.context;
+      const { id, data } = msg;
+      if (!id || !data) {
+        ws.send(JSON.stringify({ ok: false, error: 'id and data required', requestId: msg.requestId }));
+        return;
+      }
+      config.baseInstalls = config.baseInstalls || [];
+      const idx = config.baseInstalls.findIndex((b: any) => b.id === id);
+      if (idx === -1) {
+        ws.send(JSON.stringify({ ok: false, error: 'Base install not found', requestId: msg.requestId }));
+        return;
+      }
+      if (data.path && config.baseInstalls.some((b: any, i: number) => b.path === data.path && i !== idx)) {
+        ws.send(JSON.stringify({ ok: false, error: 'Another base install with this path already exists', requestId: msg.requestId }));
+        return;
+      }
+      if (data.path) config.baseInstalls[idx].path = data.path;
+      if (data.version) config.baseInstalls[idx].version = data.version;
+      if (data.lastUpdated) config.baseInstalls[idx].lastUpdated = data.lastUpdated;
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+      auditLog('updateBaseInstall', { id, path: data.path, version: data.version });
+      ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
+      broadcast('baseInstallsUpdated', { baseInstalls: config.baseInstalls });
+    },
+    removeBaseInstall: async (ws: WebSocket, msg: any) => {
+      const { config, fs, configPath, auditLog, broadcast } = this.context;
+      const { id } = msg;
+      config.baseInstalls = config.baseInstalls || [];
+      const idx = config.baseInstalls.findIndex((b: any) => b.id === id);
+      if (idx === -1) {
+        ws.send(JSON.stringify({ ok: false, error: 'Base install not found', requestId: msg.requestId }));
+        return;
+      }
+      config.baseInstalls.splice(idx, 1);
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+      auditLog('removeBaseInstall', { id });
+      ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
+      broadcast('baseInstallsUpdated', { baseInstalls: config.baseInstalls });
+    },
+    updatebaseinstall: async (ws: WebSocket, msg: any) => {
+      const { getProfiles, processManager, spawn } = this.context;
+      const profiles = getProfiles();
+      const affectedProfiles = profiles.filter((p: any) => p.baseInstallPath === msg.path);
+      if (affectedProfiles.length > 0) {
+        const runningChecks = await Promise.all(
+          affectedProfiles.map((profile: any) => processManager.isRunning(`${profile.host}:${profile.port}`, profile))
+        );
+        if (!runningChecks.some(running => running)) {
+          affectedProfiles.forEach((profile: any) => {
+            spawn('steamcmd', [
+              '+login', 'anonymous',
+              '+force_install_dir', profile.baseInstallPath,
+              '+app_update', 2430930,
+              '+quit'
+            ]);
+          });
+          ws.send(JSON.stringify({ type: 'updatebaseinstallHandled', path: msg.path }));
+        } else {
+          ws.send(JSON.stringify({ type: 'error', message: 'Cannot update base install while servers are running' }));
+        }
+      } else {
+        ws.send(JSON.stringify({ type: 'error', message: 'Base install not found' }));
+      }
+    },
+  };
+}

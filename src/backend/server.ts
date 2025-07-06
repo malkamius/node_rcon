@@ -595,353 +595,79 @@ processManager.startPeriodicStatusCheck(1000);
 
 // WebSocket: send status updates to clients
 // On WebSocket connection, send all session logs to the client
+
+// --- WebSocket Message Handler Refactor ---
+import { SessionHandler } from './handlers/SessionHandler';
+import { ProfileHandler } from './handlers/ProfileHandler';
+import { BaseInstallHandler } from './handlers/BaseInstallHandler';
+import { IniHandler } from './handlers/IniHandler';
+
+// Context object to pass shared dependencies to handlers
+const handlerContext = {
+  sessionLines,
+  loadSessionLinesFromDisk,
+  saveSessionLinesToDisk,
+  broadcast,
+  rconManager,
+  sendAdminSocketCommand,
+  getProfiles,
+  saveProfiles,
+  setServerManuallyStopped,
+  processManager,
+  config,
+  fs,
+  configPath,
+  auditLog,
+  spawn: require('child_process').spawn,
+  SESSION_LINES_MAX,
+};
+
+// Instantiate handler classes
+const sessionHandler = new SessionHandler(handlerContext);
+const profileHandler = new ProfileHandler(handlerContext);
+const baseInstallHandler = new BaseInstallHandler(handlerContext);
+const iniHandler = new IniHandler(handlerContext);
+
+// Merge all handler maps into a master handler map
+const masterHandlers: { [msgType: string]: (ws: any, msg: any) => Promise<void> } = {
+  ...sessionHandler.handlers,
+  ...profileHandler.handlers,
+  ...baseInstallHandler.handlers,
+  ...iniHandler.handlers,
+};
+
 wss.on('connection', (ws) => {
-        
-  (async () => {
-    // Broadcast baseInstalls to all clients
-    function broadcastBaseInstalls() {
-      const payload = JSON.stringify({ type: 'baseInstallsUpdated', baseInstalls: config.baseInstalls || [] });
-      wss.clients.forEach((client) => {
-        if (client.readyState === 1) {
-          client.send(payload);
-        }
-      });
+  ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
+  // On connect, reload all session lines from disk for all known keys
+  const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':'));
+  for (const key of allKeys) {
+    if (!sessionLines[key]) sessionLines[key] = loadSessionLinesFromDisk(key);
+  }
+  ws.send(JSON.stringify({ type: 'sessionLines', data: sessionLines }));
+  ws.send(JSON.stringify({ type: 'status', data: rconManager.getStatus() }));
+  const statusListener = (key: string, state: any) => {
+    ws.send(JSON.stringify({ type: 'status', data: [{ key, ...state }] }));
+  };
+  rconManager.on('status', statusListener);
+  ws.on('close', () => {
+    rconManager.off('status', statusListener);
+  });
+
+  ws.on('message', async (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      const handler = masterHandlers[msg.type];
+      if (handler) {
+        await handler(ws, msg);
+      } else {
+        // Optionally, send error for unknown message type
+        // ws.send(JSON.stringify({ type: 'error', message: `Unknown message type: ${msg.type}` }));
+      }
+    } catch (err) {
+      // Optionally, send error for parse/handler errors
+      // ws.send(JSON.stringify({ type: 'error', message: 'Failed to process message' }));
     }
-    ws.on('message', async (data) => {
-       
-      try {
-        const msg = JSON.parse(data.toString());
-         // --- Process status (for refactored frontend) ---
-        if (msg.type === 'getProcessStatus') {
-          try {
-            const profiles = getProfiles();
-            const status = profiles.map((profile: any) => {
-              const key = `${profile.host}:${profile.port}`;
-              const status = processManager.getStatus(key);
-              const proc = (processManager as any).processes?.[key];
-              return {
-                key,
-                running: !!proc,
-                startTime: proc ? proc.startTime : null,
-                manuallyStopped: !!profile.manuallyStopped,
-                autoStart: !!profile.autoStart,
-                baseInstallId: profile.baseInstallId || null
-              };
-            });
-            ws.send(JSON.stringify({ type: 'getProcessStatus', status, requestId: msg.requestId }));
-          } catch (e: any) {
-            ws.send(JSON.stringify({ type: 'getProcessStatus', error: e?.message || 'Failed to get process status', requestId: msg.requestId }));
-          }
-          return;
-        }
-        // --- INI/config management (for refactored frontend) ---
-        else if (msg.type === 'getServerIni' && typeof msg.idx === 'number' && typeof msg.file === 'string') {
-          try {
-            const profiles = getProfiles();
-            const profile = profiles[msg.idx];
-            if (!profile) throw new Error('Profile not found');
-            // Use iniApi to get the INI data (simulate Express handler)
-            const iniApiModule = require('./iniApi');
-            if (typeof iniApiModule.getIni === 'function') {
-              iniApiModule.getIni(profile, msg.file).then((iniObj: any) => {
-                ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, iniObj, requestId: msg.requestId }));
-              }).catch((e: any) => {
-                ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, error: e?.message || 'Failed to load INI', requestId: msg.requestId }));
-              });
-            } else {
-              // fallback: read and decode directly
-              const path = require('path');
-              const fs = require('fs');
-              const ini = require('./ark-ini');
-              const iniPath = path.join(profile.directory, 'ShooterGame', 'Saved', 'Config', 'WindowsServer', msg.file);
-              if (!fs.existsSync(iniPath)) {
-                ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, iniObj: {}, requestId: msg.requestId }));
-              } else {
-                const iniRaw = fs.readFileSync(iniPath, 'utf-8');
-                const iniObj = ini.decode(iniRaw);
-                ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, iniObj, requestId: msg.requestId }));
-              }
-            }
-          } catch (e: any) {
-            ws.send(JSON.stringify({ type: 'getServerIni', idx: msg.idx, file: msg.file, error: e?.message || 'Failed to load INI', requestId: msg.requestId }));
-          }
-          return;
-        }
-        else if (msg.type === 'saveServerIni' && typeof msg.idx === 'number' && typeof msg.file === 'string' && typeof msg.iniObj === 'object') {
-          try {
-            const profiles = getProfiles();
-            const profile = profiles[msg.idx];
-            if (!profile) throw new Error('Profile not found');
-            const iniApiModule = require('./iniApi');
-            if (typeof iniApiModule.saveIni === 'function') {
-              iniApiModule.saveIni(profile, msg.file, msg.iniObj).then(() => {
-                ws.send(JSON.stringify({ type: 'saveServerIni', ok: true, requestId: msg.requestId }));
-              }).catch((e: any) => {
-                ws.send(JSON.stringify({ type: 'saveServerIni', error: e?.message || 'Failed to save INI', requestId: msg.requestId }));
-              });
-            } else {
-              // fallback: encode and write directly
-              const path = require('path');
-              const fs = require('fs');
-              const ini = require('./ark-ini');
-              const iniPath = path.join(profile.directory, 'ShooterGame', 'Saved', 'Config', 'WindowsServer', msg.file);
-              const iniStr = ini.encode(msg.iniObj, { whitespace: false });
-              fs.mkdirSync(path.dirname(iniPath), { recursive: true });
-              fs.writeFileSync(iniPath, iniStr, 'utf-8');
-              ws.send(JSON.stringify({ type: 'saveServerIni', ok: true, requestId: msg.requestId }));
-            }
-          } catch (e: any) {
-            ws.send(JSON.stringify({ type: 'saveServerIni', error: e?.message || 'Failed to save INI', requestId: msg.requestId }));
-          }
-          return;
-        }
-        else if (msg.type === 'startServer' && typeof msg.key === 'string') {
-          try {
-            await processManager.start(msg.key);
-            ws.send(JSON.stringify({ type: 'startServer', ok: true, requestId: msg.requestId }));
-          } catch (e: any) {
-            ws.send(JSON.stringify({ type: 'startServer', error: e?.message || 'Failed to start server', requestId: msg.requestId }));
-          }
-          return;
-        }
-        if (msg.type === 'stopServer' && typeof msg.key === 'string') {
-          try {
-            await processManager.stop(msg.key);
-            ws.send(JSON.stringify({ type: 'stopServer', ok: true, requestId: msg.requestId }));
-          } catch (e: any) {
-            ws.send(JSON.stringify({ type: 'stopServer', error: e?.message || 'Failed to stop server', requestId: msg.requestId }));
-          }
-          return;
-        }
-        // --- BaseInstallManager WebSocket API ---
-        else if (msg.type === 'getBaseInstalls') {
-          ws.send(JSON.stringify({ type: 'baseInstalls', baseInstalls: config.baseInstalls || [], requestId: msg.requestId }));
-          return;
-        } else if (msg.type === 'addBaseInstall') {
-          const { id, path: installPath, version, lastUpdated } = msg.data || {};
-          if (!id || !installPath) {
-            ws.send(JSON.stringify({ ok: false, error: 'id and path are required', requestId: msg.requestId }));
-            return;
-          }
-          config.baseInstalls = config.baseInstalls || [];
-          if (config.baseInstalls.some((b: any) => b.id === id || b.path === installPath)) {
-            ws.send(JSON.stringify({ ok: false, error: 'Base install with this id or path already exists', requestId: msg.requestId }));
-            return;
-          }
-          config.baseInstalls.push({ id, path: installPath, version: version || '', lastUpdated: lastUpdated || new Date().toISOString() });
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-          auditLog('addBaseInstall', { id, path: installPath, version });
-          ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
-          broadcastBaseInstalls();
-          return;
-        } else if (msg.type === 'updateBaseInstall') {
-          const { id, data } = msg;
-          if (!id || !data) {
-            ws.send(JSON.stringify({ ok: false, error: 'id and data required', requestId: msg.requestId }));
-            return;
-          }
-          config.baseInstalls = config.baseInstalls || [];
-          const idx = config.baseInstalls.findIndex((b: any) => b.id === id);
-          if (idx === -1) {
-            ws.send(JSON.stringify({ ok: false, error: 'Base install not found', requestId: msg.requestId }));
-            return;
-          }
-          if (data.path && config.baseInstalls.some((b: any, i: number) => b.path === data.path && i !== idx)) {
-            ws.send(JSON.stringify({ ok: false, error: 'Another base install with this path already exists', requestId: msg.requestId }));
-            return;
-          }
-          if (data.path) config.baseInstalls[idx].path = data.path;
-          if (data.version) config.baseInstalls[idx].version = data.version;
-          if (data.lastUpdated) config.baseInstalls[idx].lastUpdated = data.lastUpdated;
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-          auditLog('updateBaseInstall', { id, path: data.path, version: data.version });
-          ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
-          broadcastBaseInstalls();
-          return;
-        } else if (msg.type === 'removeBaseInstall') {
-          const { id } = msg;
-          config.baseInstalls = config.baseInstalls || [];
-          const idx = config.baseInstalls.findIndex((b: any) => b.id === id);
-          if (idx === -1) {
-            ws.send(JSON.stringify({ ok: false, error: 'Base install not found', requestId: msg.requestId }));
-            return;
-          }
-          config.baseInstalls.splice(idx, 1);
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-          auditLog('removeBaseInstall', { id });
-          ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
-          broadcastBaseInstalls();
-          return;
-        }
-        // --- Profiles management (for refactored frontend) ---
-        if (msg.type === 'getProfiles') {
-          try {
-            const profiles = getProfiles();
-            ws.send(JSON.stringify({ type: 'getProfiles', profiles, requestId: msg.requestId }));
-          } catch (e) {
-            ws.send(JSON.stringify({ type: 'getProfiles', error: 'Failed to load profiles', requestId: msg.requestId }));
-          }
-          return;
-        }
-        if (msg.type === 'saveProfiles' && Array.isArray(msg.profiles)) {
-          try {
-            saveProfiles(msg.profiles);
-            ws.send(JSON.stringify({ type: 'saveProfiles', ok: true, requestId: msg.requestId }));
-          } catch (e) {
-            ws.send(JSON.stringify({ type: 'saveProfiles', error: 'Failed to save profiles', requestId: msg.requestId }));
-          }
-          return;
-        }
-        // --- Session lines (for refactored frontend) ---
-        if (msg.type === 'getSessionLines' && typeof msg.key === 'string') {
-          try {
-            if (!sessionLines[msg.key]) {
-              sessionLines[msg.key] = loadSessionLinesFromDisk(msg.key);
-            }
-            ws.send(JSON.stringify({ type: 'getSessionLines', key: msg.key, lines: sessionLines[msg.key] || [], requestId: msg.requestId }));
-          } catch (e) {
-            ws.send(JSON.stringify({ type: 'getSessionLines', key: msg.key, lines: [], requestId: msg.requestId }));
-          }
-          return;
-        }
-        if (msg.type === 'clearSessionLines' && msg.key) {
-          sessionLines[msg.key] = [];
-          saveSessionLinesToDisk(msg.key, []);
-          // Broadcast empty log to all clients
-          broadcast('sessionLine', { key: msg.key, line: null });
-          // Also broadcast the full (empty) log for the key
-          broadcast('getSessionLines', { key: msg.key, lines: [] });
-          return;
-        }
-        if (msg.type === 'command' && msg.key && typeof msg.command === 'string') {
-          // Store the command line with guid/type if provided
-          const commandLine: any = {
-            text: '> ' + msg.command,
-            timestamp: Date.now(),
-            type: 'command',
-          };
-          if (msg.guid) commandLine.guid = msg.guid;
-          if (!sessionLines[msg.key]) sessionLines[msg.key] = [];
-          sessionLines[msg.key].push(commandLine);
-          if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
-            sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
-          }
-          saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
-          broadcast('sessionLine', { key: msg.key, line: commandLine });
-
-          // Use real RCON connection
-          const output = await rconManager.sendCommand(msg.key, msg.command);
-          // Send output with guid/type if guid was provided
-          if (typeof output === 'string' && output.trim()) {
-            const outputLine: any = {
-              text: output,
-              timestamp: Date.now(),
-              type: 'output',
-            };
-            if (msg.guid) outputLine.guid = msg.guid;
-            sessionLines[msg.key].push(outputLine);
-            if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
-              sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
-            }
-            saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
-            broadcast('sessionLine', { key: msg.key, line: outputLine });
-          }
-          // (No need to send output event for legacy clients)
-        } else if (msg.type === 'adminTask' && typeof msg.script === 'string') {
-          // Execute admin task via socket server
-          try {
-            const result = await sendAdminSocketCommand(msg.script);
-            ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, result }));
-          } catch (err) {
-            ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, error: String(err) }));
-          }
-        } else if (msg.type === 'shutdownserver' && msg.keys) {
-          // Handle server shutdown
-          const keys = msg.keys;
-          const profiles = getProfiles();
-          const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
-          if (affectedProfiles.length > 0) {
-            affectedProfiles.forEach((profile : any) => {
-              profile.manuallyStopped = true;
-            });
-            saveProfiles(profiles);
-            affectedProfiles.forEach((profile : any) => {
-              setServerManuallyStopped(`${profile.host}:${profile.port}`, true);
-              // Stop the process
-              processManager.stopProcess(`${profile.host}:${profile.port}`);
-            });
-            ws.send(JSON.stringify({ type: 'shutdownserverHandled', keys }));
-          } else {
-            ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
-          }
-        } else if (msg.type === 'startserver' && msg.keys) {
-          // Handle server force start
-          const keys = msg.keys;
-          const profiles = getProfiles();
-          const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
-          if (affectedProfiles.length > 0) {
-            affectedProfiles.forEach((profile : any) => {
-              profile.manuallyStopped = false;
-            });
-            saveProfiles(profiles);
-            affectedProfiles.forEach((profile : any) => {
-              setServerManuallyStopped(`${profile.host}:${profile.port}`, false);
-              // Start the process
-              processManager.start(profile);
-            });
-            ws.send(JSON.stringify({ type: 'startserverHandled', keys }));
-          } else {
-            ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
-          }
-        } else if(msg.type === 'updatebaseinstall' && typeof msg.path === 'string') {
-          // Handle base install update (async isRunning)
-          const profiles = getProfiles();
-          const affectedProfiles = profiles.filter((p: any) => p.baseInstallPath === msg.path);
-          if (affectedProfiles.length > 0) {
-            // Check if any affected profile is running (async)
-            const runningChecks = await Promise.all(
-              affectedProfiles.map((profile: any) => processManager.isRunning(`${profile.host}:${profile.port}`, profile))
-            );
-            if (!runningChecks.some(running => running)) {
-              affectedProfiles.forEach((profile: any) => {
-                spawn('steamcmd', [
-                  '+login', 'anonymous',
-                  '+force_install_dir', profile.baseInstallPath,
-                  '+app_update', 2430930,
-                  '+quit'
-                ]);
-              });
-              ws.send(JSON.stringify({ type: 'updatebaseinstallHandled', path: msg.path }));
-            } else {
-              ws.send(JSON.stringify({ type: 'error', message: 'Cannot update base install while servers are running' }));
-            }
-          } else {
-            ws.send(JSON.stringify({ type: 'error', message: 'Base install not found' }));
-          }
-        }
-      } catch {}
-    });
-
-    ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
-    // Send all session logs (all keys)
-    // On connect, reload all session lines from disk for all known keys
-    const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':'));
-    for (const key of allKeys) {
-      if (!sessionLines[key]) sessionLines[key] = loadSessionLinesFromDisk(key);
-    }
-    ws.send(JSON.stringify({ type: 'sessionLines', data: sessionLines }));
-    // Send current status
-    ws.send(JSON.stringify({ type: 'status', data: rconManager.getStatus() }));
-    // Listen for status changes
-    const statusListener = (key: string, state: any) => {
-      ws.send(JSON.stringify({ type: 'status', data: [{ key, ...state }] }));
-    };
-    rconManager.on('status', statusListener);
-
-    ws.on('close', () => {
-      rconManager.off('status', statusListener);
-    });
-  })();
+  });
 });
 
 // API: Get server profiles

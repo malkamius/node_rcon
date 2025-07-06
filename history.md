@@ -1,3 +1,13 @@
+# 2025-07-06
+- Refactored WebSocket message handling in `server.ts`:
+  - Split message handlers into domain-specific handler classes: `SessionHandler`, `ProfileHandler`, `BaseInstallHandler`, `IniHandler` (in `src/backend/handlers/`).
+  - Each handler exposes a map of message type to handler function.
+  - `server.ts` now instantiates handlers and dispatches messages via a master handler map.
+  - Added `handlers/README.md` documenting the message type to handler mapping.
+- Next steps:
+  - Test all WebSocket message types for correct routing and behavior.
+  - Consider further splitting or documenting handler context dependencies.
+  - Update requirements and plan files to reflect this refactor.
 ## 2025-07-06
 - Migrated all session line and process status frontend fetch calls (`rconTerminalManager.ts`, `processStatusApi.ts`) to use the persistent WebSocket connection (`wsRequest`).
 - Added WebSocket backend handler for `getProcessStatus` to support process status requests from the frontend.

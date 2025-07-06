@@ -1,3 +1,14 @@
+# 2025-07-06: WebSocket Handler Refactor
+- Refactored WebSocket message handling in `server.ts` to use handler classes per domain (session, profile, base install, ini/config).
+- Each handler exposes a map of message type to function. Master handler map dispatches messages.
+- Added documentation table in `handlers/README.md`.
+
+## Next Steps
+- Test all WebSocket message types for correct routing and behavior.
+- Consider further splitting or documenting handler context dependencies.
+
+## Chat History Summary
+2025-07-06: Refactored WebSocket message handling in `server.ts` to use handler classes per domain. Each handler exposes a map of message type to function. Master handler map dispatches messages. Added documentation table in `handlers/README.md`.
 # Server Instance Management Implementation Plan
 
 This plan outlines the recommended approach for implementing the features described in `requirements.server-instance-management.md` for the `manage-instances` branch. The goal is to deliver robust, maintainable, and extensible server process and base file management for Ark: Survival Ascended servers.
