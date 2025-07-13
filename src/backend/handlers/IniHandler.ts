@@ -42,17 +42,39 @@ export class IniHandler {
         if (!profile) throw new Error('Profile not found');
         const iniApiModule = require('../iniApi');
         if (typeof iniApiModule.saveIni === 'function') {
-          iniApiModule.saveIni(profile, msg.file, msg.iniObj).then(() => {
-            ws.send(JSON.stringify({ type: 'saveServerIni', ok: true, requestId: msg.requestId }));
-          }).catch((e: any) => {
-            ws.send(JSON.stringify({ type: 'saveServerIni', error: e?.message || 'Failed to save INI', requestId: msg.requestId }));
-          });
+          // Use deepMerge to preserve existing properties not specified in new settings
+          const path = require('path');
+          const fs = require('fs');
+          const ini = require('../ark-ini');
+          const iniPath = path.join(profile.directory, 'ShooterGame', 'Saved', 'Config', 'WindowsServer', msg.file);
+          let mergedIni = {};
+          if (fs.existsSync(iniPath)) {
+            const iniRaw = fs.readFileSync(iniPath, 'utf-8');
+            const iniObj = ini.decode(iniRaw);
+            mergedIni = iniApiModule.deepMerge ? iniApiModule.deepMerge(iniObj, msg.iniObj) : msg.iniObj;
+          } else {
+            mergedIni = msg.iniObj;
+          }
+          const iniStr = ini.encode(mergedIni, { whitespace: false });
+          fs.mkdirSync(path.dirname(iniPath), { recursive: true });
+          fs.writeFileSync(iniPath, iniStr, 'utf-8');
+          ws.send(JSON.stringify({ type: 'saveServerIni', ok: true, requestId: msg.requestId }));
         } else {
           const path = require('path');
           const fs = require('fs');
           const ini = require('../ark-ini');
           const iniPath = path.join(profile.directory, 'ShooterGame', 'Saved', 'Config', 'WindowsServer', msg.file);
-          const iniStr = ini.encode(msg.iniObj, { whitespace: false });
+          let mergedIni = {};
+          if (fs.existsSync(iniPath)) {
+            const iniRaw = fs.readFileSync(iniPath, 'utf-8');
+            const iniObj = ini.decode(iniRaw);
+            // Fallback: use deepMerge from iniApi if available, else just overwrite
+            const iniApiModule = require('../iniApi');
+            mergedIni = iniApiModule.deepMerge ? iniApiModule.deepMerge(iniObj, msg.iniObj) : msg.iniObj;
+          } else {
+            mergedIni = msg.iniObj;
+          }
+          const iniStr = ini.encode(mergedIni, { whitespace: false });
           fs.mkdirSync(path.dirname(iniPath), { recursive: true });
           fs.writeFileSync(iniPath, iniStr, 'utf-8');
           ws.send(JSON.stringify({ type: 'saveServerIni', ok: true, requestId: msg.requestId }));

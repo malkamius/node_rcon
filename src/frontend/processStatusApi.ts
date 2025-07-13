@@ -19,15 +19,17 @@ function wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, 
   }
   const requestId = 'req' + Math.random().toString(36).slice(2);
   payload.requestId = requestId;
-  let timeoutTimer = setTimeout(() => {
+
+  let timer = setTimeout(() => {
     ws.removeEventListener('message', handleMessage);
     cb({ error: 'WebSocket request timeout' });
   }, timeout);
+
   const handleMessage = (event: MessageEvent) => {
     try {
+      clearTimeout(timer);
       const msg = JSON.parse(event.data);
       if (msg.requestId === requestId) {
-        clearTimeout(timeoutTimer);
         ws.removeEventListener('message', handleMessage);
         cb(msg);
       }

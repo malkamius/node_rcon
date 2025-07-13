@@ -95,28 +95,32 @@ export class RconTerminalManager {
   }
 
   wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, timeout = 8000) {
-  if (!ws || ws.readyState !== 1) {
-    cb({ error: 'WebSocket not connected' });
-    return;
+    if (!ws || ws.readyState !== 1) {
+      cb({ error: 'WebSocket not connected' });
+      return;
+    }
+    const requestId = 'req' + Math.random().toString(36).slice(2);
+    payload.requestId = requestId;
+
+    let timer = setTimeout(() => {
+      ws.removeEventListener('message', handleMessage);
+      cb({ error: 'WebSocket request timeout' });
+    }, timeout);
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        clearTimeout(timer);
+        const msg = JSON.parse(event.data);
+        if (msg.requestId === requestId) {
+          ws.removeEventListener('message', handleMessage);
+          cb(msg);
+        }
+      } catch {}
+    };
+    ws.addEventListener('message', handleMessage);
+    ws.send(JSON.stringify(payload));
+    
   }
-  const requestId = 'req' + Math.random().toString(36).slice(2);
-  payload.requestId = requestId;
-  const handleMessage = (event: MessageEvent) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.requestId === requestId) {
-        ws.removeEventListener('message', handleMessage);
-        cb(msg);
-      }
-    } catch {}
-  };
-  ws.addEventListener('message', handleMessage);
-  ws.send(JSON.stringify(payload));
-  // setTimeout(() => {
-  //   ws.removeEventListener('message', handleMessage);
-  //   cb({ error: 'WebSocket request timeout' });
-  // }, timeout);
-}
   clear(key: string, ws: WebSocket | null) {
     if (this.sessions.has(key)) {
       this.sessions.get(key)!.lines = [];

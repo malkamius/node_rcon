@@ -1,14 +1,30 @@
+# 2025-07-13: INI Save Deep Merge Implementation
+- Updated `IniHandler` to use `deepMerge` from `iniApi.ts` for INI saves over WebSocket.
+- Existing INI properties not specified in new settings are preserved.
+- Documented deep merge behavior in `handlers/README.md` and requirements.
+
+## Next Steps
+- Test INI save functionality to confirm deep merge works as expected for all INI property types.
+- Update frontend to clarify that only specified settings are updated, others are preserved.
+- Review requirements and plan files for any additional INI/config management changes needed.
+
 # 2025-07-06: WebSocket Handler Refactor
 - Refactored WebSocket message handling in `server.ts` to use handler classes per domain (session, profile, base install, ini/config).
 - Each handler exposes a map of message type to function. Master handler map dispatches messages.
 - Added documentation table in `handlers/README.md`.
 
+# 2025-07-06: REST Endpoint Removal and Requirements Update
+- Removed deprecated REST endpoint `/api/install-instance` from `server.ts`. Instance installs are now handled exclusively via WebSocket and executed using `adminSocketClient` for admin permissions.
+- Updated `requirements.md` to clarify that all instance install actions must use WebSocket and `adminSocketClient`.
+
 ## Next Steps
 - Test all WebSocket message types for correct routing and behavior.
+- Confirm all code paths use WebSocket for instance installs.
+- Remove any remaining references to the old REST endpoint in documentation or client code if present.
 - Consider further splitting or documenting handler context dependencies.
 
 ## Chat History Summary
-2025-07-06: Refactored WebSocket message handling in `server.ts` to use handler classes per domain. Each handler exposes a map of message type to function. Master handler map dispatches messages. Added documentation table in `handlers/README.md`.
+2025-07-06: User required all instance install actions to be handled via WebSocket and `adminSocketClient` for admin permissions. Modal and backend were refactored to use `wsRef.current` and WebSocket exclusively. REST endpoint for install-instance was deprecated and is now removed. Documentation and requirements updated to reflect the new workflow.
 # Server Instance Management Implementation Plan
 
 This plan outlines the recommended approach for implementing the features described in `requirements.server-instance-management.md` for the `manage-instances` branch. The goal is to deliver robust, maintainable, and extensible server process and base file management for Ark: Survival Ascended servers.

@@ -1,11 +1,4 @@
-// NOTE: All Express API endpoint declarations (app.get, app.post, etc.) must be placed after:
-//   1. All imports
-//   2. All middleware (app.use, static, etc.)
-//   3. The line: const app = express();
-//   4. All helper and config declarations
-// Place new endpoints just before server.listen at the end of this file.
-
-
+// File: src/backend/server.ts
 import express, { Request, Response } from 'express';
 import { ArkSAProcessManager, ProcessManager, ServerProcessProfile, ProcessStatus } from './ProcessManager';
 import http from 'http';
@@ -42,6 +35,8 @@ const app = express();
 export { app };
 
 // --- Audit Logging Utility ---
+
+// --- Instance Install API removed: now handled by WebSocket and adminSocketClient for admin permissions ---
 const AUDIT_LOG_PATH = require('path').join(__dirname, '../../logs/audit.log');
 function auditLog(event: string, details: any) {
   const entry = {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { InstanceInstallModal, InstanceInstallParams } from './InstanceInstallModal';
 
 interface ServerProfile {
   name: string;
@@ -20,6 +21,7 @@ interface ServerManagementModalProps {
   onClose: () => void;
   serverProfiles: ServerProfile[];
   onSave: (profiles: ServerProfile[]) => void;
+  wsRef: React.RefObject<WebSocket>;
   error?: string | null;
   clearError?: () => void;
 }
@@ -31,7 +33,13 @@ interface ServerManagementModalState {
   error?: string | null;
 }
 
-export class ServerManagementModal extends React.Component<ServerManagementModalProps, ServerManagementModalState> {
+interface ServerManagementModalWithInstanceState extends ServerManagementModalState {
+  showInstanceInstall: boolean;
+  baseInstalls: { id: string; path: string }[];
+  instanceInstallError?: string | null;
+}
+
+export class ServerManagementModal extends React.Component<ServerManagementModalProps, ServerManagementModalWithInstanceState> {
   constructor(props: ServerManagementModalProps) {
     super(props);
     this.state = {
@@ -39,8 +47,77 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
       editingIndex: null,
       editProfile: { name: '', host: '', port: 25575, password: '', game: '', features: { currentPlayers: { enabled: false, updateInterval: 10 } }, directory: '' },
       error: null,
+      showInstanceInstall: false,
+      baseInstalls: [],
+      instanceInstallError: null,
     };
   }
+  wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, timeout = 8000) {
+    if (!ws || ws.readyState !== 1) {
+      cb({ error: 'WebSocket not connected' });
+      return;
+    }
+    const requestId = 'req' + Math.random().toString(36).slice(2);
+    payload.requestId = requestId;
+
+    let timer = setTimeout(() => {
+      ws.removeEventListener('message', handleMessage);
+      cb({ error: 'WebSocket request timeout' });
+    }, timeout);
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        clearTimeout(timer);
+        const msg = JSON.parse(event.data);
+        if (msg.requestId === requestId) {
+          ws.removeEventListener('message', handleMessage);
+          cb(msg);
+        }
+      } catch {}
+    };
+    ws.addEventListener('message', handleMessage);
+    ws.send(JSON.stringify(payload));
+    
+  }
+  openInstanceInstallModal = () => {
+    this.wsRequest(this.props.wsRef.current, { type: 'getBaseInstalls' }, (msg) => {
+      if (msg.error) {
+        this.setState({ baseInstalls: [], showInstanceInstall: true, instanceInstallError: msg.error });
+      } else {
+        this.setState({ baseInstalls: msg.baseInstalls || [], showInstanceInstall: true, instanceInstallError: null });
+      }
+    });
+  };
+
+  closeInstanceInstallModal = () => {
+    this.setState({ showInstanceInstall: false, instanceInstallError: null });
+  };
+
+  handleInstanceInstall = (params: InstanceInstallParams) => {
+    // Use wsRef.current for installInstance
+    const ws = this.props.wsRef.current;
+    if (!ws || ws.readyState !== 1) {
+      this.setState({ instanceInstallError: 'WebSocket not connected' });
+      return;
+    }
+    const requestId = 'req' + Math.random().toString(36).slice(2);
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'installInstance' && msg.requestId === requestId) {
+          ws.removeEventListener('message', handleMessage);
+          if (msg.error) {
+            this.setState({ instanceInstallError: msg.error });
+          } else {
+            this.setState({ showInstanceInstall: false, instanceInstallError: null });
+            if (this.props.onClose) this.props.onClose();
+          }
+        }
+      } catch {}
+    };
+    ws.addEventListener('message', handleMessage);
+    ws.send(JSON.stringify({ type: 'installInstance', ...params, requestId }));
+  };
 
   componentDidUpdate(prevProps: ServerManagementModalProps) {
     if (prevProps.serverProfiles !== this.props.serverProfiles) {
@@ -250,8 +327,17 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
           )}
           <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginTop: 8}}>
             <button onClick={this.handleAdd} style={{flex: '1 1 120px', minWidth: 100}}>Add Server</button>
+            <button onClick={this.openInstanceInstallModal} style={{flex: '1 1 180px', minWidth: 140}}>Install New Instance</button>
             <button onClick={onClose} style={{flex: '1 1 120px', minWidth: 100}}>Close</button>
           </div>
+          <InstanceInstallModal
+            show={this.state.showInstanceInstall}
+            onClose={this.closeInstanceInstallModal}
+            baseInstalls={this.state.baseInstalls}
+            onInstall={this.handleInstanceInstall}
+            error={this.state.instanceInstallError}
+            clearError={() => this.setState({ instanceInstallError: null })}
+          />
         </div>
       </div>
     );

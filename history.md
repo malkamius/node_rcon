@@ -1,4 +1,13 @@
 # 2025-07-06
+- Refactored `installInstance` in `BaseInstallHandler.ts` to use `sendAdminSocketCommand` for running the PowerShell script with admin privileges, instead of spawning the process directly. This ensures all instance installs are executed with the required permissions via the admin socket.
+# 2025-07-06
+- Removed deprecated REST endpoint `/api/install-instance` from `server.ts`. Instance installs are now handled exclusively via WebSocket and executed using `adminSocketClient` to ensure admin permissions.
+- Ensured all instance install actions are routed through the WebSocket backend, as per requirements.
+
+Next steps:
+- Confirm all frontend and backend code paths use the WebSocket for instance installs.
+- Remove any remaining references to the old REST endpoint in documentation or client code if present.
+# 2025-07-06
 - Refactored WebSocket message handling in `server.ts`:
   - Split message handlers into domain-specific handler classes: `SessionHandler`, `ProfileHandler`, `BaseInstallHandler`, `IniHandler` (in `src/backend/handlers/`).
   - Each handler exposes a map of message type to handler function.

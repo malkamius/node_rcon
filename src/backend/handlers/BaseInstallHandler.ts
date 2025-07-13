@@ -1,6 +1,35 @@
-import { WebSocket } from 'ws';
+    
 
 export class BaseInstallHandler {
+  async installInstance(ws: WebSocket, msg: any): Promise<void> {
+    const { sendAdminSocketCommand } = this.context;
+    const {
+      baseInstallPath,
+      instanceDirectory,
+      queryPort,
+      gamePort,
+      mapName,
+      sessionName,
+      adminPassword,
+      serverPassword
+    } = msg;
+    if (!baseInstallPath || !instanceDirectory || !queryPort || !gamePort || !mapName || !sessionName || !adminPassword) {
+      ws.send(JSON.stringify({ type: 'installInstance', error: 'Missing required parameters', requestId: msg.requestId }));
+      return;
+    }
+    // Build argument list for the PowerShell script
+    const args = [
+      '-BaseServerInstallDirectory', `${baseInstallPath}`,
+      '-InstanceDirectory', `${instanceDirectory}`
+    ];
+    // Optionally add more params as needed (future: queryPort, gamePort, etc.)
+    try {
+      const output = await sendAdminSocketCommand('Install-Instance.ps1', args);
+      ws.send(JSON.stringify({ type: 'installInstance', ok: true, output, requestId: msg.requestId }));
+    } catch (err: any) {
+      ws.send(JSON.stringify({ type: 'installInstance', error: String(err), requestId: msg.requestId }));
+    }
+  }
   constructor(private context: any) {}
 
   handlers = {

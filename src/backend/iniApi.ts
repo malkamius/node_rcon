@@ -114,6 +114,12 @@ router.post('/api/server-ini/:profileIdx/:file', express.json(), (req, res) => {
         res.status(500).json({ error: e.message });
     }
     // Deep merge helper: merges b into a, returns new object
+    // Exported deepMerge for use in handlers
+    // (also used internally in REST endpoint above)
+    // Usage: deepMerge(existingIni, newIni)
+    // Returns merged object with new values overwriting old, but old keys not in new are preserved
+    // Handles DuplicateEntry and arrays as in REST endpoint
+    // Exported below for handler usage
     function deepMerge(a: any, b: any): any {
         // Handle null/undefined
         if (a === undefined || a === null) return b;
@@ -155,6 +161,8 @@ router.post('/api/server-ini/:profileIdx/:file', express.json(), (req, res) => {
         // Otherwise, use b (new value overwrites old)
         return b;
     }
+    // Export for handler usage
+    module.exports.deepMerge = deepMerge;
 });
 
 export default router;

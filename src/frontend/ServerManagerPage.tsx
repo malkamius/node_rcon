@@ -35,6 +35,7 @@ import { TabManager } from './TabManager';
 import { RconClientWindow } from './RconClientWindow';
 import { ServerConfigTab } from './ServerConfigTab';
 import { ServerManagementModal } from './ServerManagementModal';
+// InstanceInstallModal is imported in ServerManagementModal
 import { DisconnectedModal } from './DisconnectedModal';
 import { RconTerminalManager } from './rconTerminalManager';
 
@@ -458,6 +459,7 @@ export const ServerManagerPage: React.FC = () => {
         onClose={handleCloseServerModal}
         serverProfiles={serverProfiles}
         onSave={handleSaveServerProfiles}
+        wsRef={wsRef}
         error={error}
         clearError={clearError}
       />

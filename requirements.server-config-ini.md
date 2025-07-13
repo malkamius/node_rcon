@@ -28,14 +28,14 @@ This document outlines the requirements and implementation plan for the new Serv
   - At least one of (path or IP/port) must be provided.
 - Save these fields in config.json.
 
-## 4. INI File Management
-- Use a Node.js INI library (e.g., `ini` or `iniparser`) in the backend to read/write Game.ini and GameUserSettings.ini.
-- When a server is selected, backend loads the INI files and sends their contents to the frontend as structured data.
-- Frontend displays settings as a form:
   - Each setting has a checkbox (enabled if present in the INI, unchecked if not).
   - Input type (checkbox, slider, textbox, etc.) is determined by a JSON template describing available options and types for each setting.
-- User can add/remove/modify settings, then save changes.
-- Saving sends the updated structure to the backend, which writes the INI files.
+
+## 4a. INI Save Deep Merge Behavior (2025-07-13)
+- When saving INI files, the backend uses a deep merge algorithm (`deepMerge` from `iniApi.ts`).
+- Existing INI properties not specified in the new settings are preserved.
+- Duplicate entries, arrays, and nested sections are merged according to the rules in `deepMerge`.
+- Only the provided settings are updated; all other settings remain intact.
 
 ## 5. Settings Templates
 - Store JSON templates for each game type (e.g., ARK: Survival Evolved) describing:
