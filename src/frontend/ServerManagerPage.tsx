@@ -39,7 +39,7 @@ import { ServerManagementModal } from './ServerManagementModal';
 import { DisconnectedModal } from './DisconnectedModal';
 import { RconTerminalManager } from './rconTerminalManager';
 
-import { BaseInstallManager } from './BaseInstallManager';
+import { InstallManager } from './InstallManager';
 
 interface ServerProfile {
   name: string;
@@ -444,8 +444,8 @@ export const ServerManagerPage: React.FC = () => {
               wsRef={wsRef}
             />
           ) : activity === 'baseinstalls' ? (
-            <BaseInstallManager 
-              handleUpdate={handleUpdateBaseInstall}
+            <InstallManager 
+              handleUpdateBaseInstallFiles={handleUpdateBaseInstall}
               ws={wsRef.current}
             />
           ) : null}

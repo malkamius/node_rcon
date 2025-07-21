@@ -1,5 +1,3 @@
-    
-
 export class BaseInstallHandler {
   async installInstance(ws: WebSocket, msg: any): Promise<void> {
     const { sendAdminSocketCommand } = this.context;
@@ -120,5 +118,45 @@ export class BaseInstallHandler {
         ws.send(JSON.stringify({ type: 'error', message: 'Base install not found' }));
       }
     },
+    getSteamCmdInstall: async (ws: WebSocket, msg: any) => {
+      const { config } = this.context;
+      let found = false;
+      let steamCmdPath = config.steamCmdPath || "";
+      const fs = require('fs');
+      const exePath = require('path').join(steamCmdPath, 'steamcmd.exe');
+      if (steamCmdPath) {
+        found = fs.existsSync(exePath);
+      }
+      const result = { steamCmdPath, found };
+      ws.send(JSON.stringify({ type: 'getSteamCmdInstall', result, requestId: msg.requestId }));
+    },
+    getSteamCmdExistsAt: async (ws: WebSocket, msg: any) => {
+      const { steamCmdPath } = msg;
+      const fs = require('fs');
+      const exePath = require('path').join(steamCmdPath, 'steamcmd.exe');
+      const exists = fs.existsSync(exePath);
+      ws.send(JSON.stringify({ type: 'getSteamCmdExistsAt', exists, requestId: msg.requestId }));
+    },
+    setSteamCmdPath: async (ws: WebSocket, msg: any) => {
+      const { config, configPath, auditLog } = this.context;
+      const { steamCmdPath } = msg;
+      // Save the new path to config
+      config.steamCmdPath = steamCmdPath;
+      // TODO: Save the updated config, maybe an API to save config
+    },
+    installSteamCmd: async (ws: WebSocket, msg: any) => {
+      const { sendAdminSocketCommand } = this.context;
+      const { baseInstallPath } = msg;
+      if (!baseInstallPath) {
+        ws.send(JSON.stringify({ type: 'installSteamCmd', error: 'Missing baseInstallPath', requestId: msg.requestId }));
+        return;
+      }
+      try {
+        const output = await sendAdminSocketCommand('Install-SteamCmd.ps1', ['-BaseServerInstallDirectory', baseInstallPath]);
+        ws.send(JSON.stringify({ type: 'installSteamCmd', ok: true, output, requestId: msg.requestId }));
+      } catch (err: any) {
+        ws.send(JSON.stringify({ type: 'installSteamCmd', error: String(err), requestId: msg.requestId }));
+      }
+    }
   };
 }

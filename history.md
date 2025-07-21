@@ -64,16 +64,18 @@ Next steps:
 
 **Next steps:**
 - Monitor for any issues with async process status checks during base install updates.
--## 2025-07-04
-- Frontend: Replaced the table in `BaseInstallManager.tsx` with a flexbox-based layout for base install management. This improves alignment, visual consistency, and layout flexibility. The new design ensures headers and values are properly aligned and enhances accessibility.
+## 2025-07-21
+- Split BaseInstallManager frontend into three modular panels: SteamCmdManager, BaseInstallManager, and InstanceManager.
+- Created new ServerManagementPage to host all three panels for server management.
+- SteamCmdManager: Allows setting/checking SteamCMD path and installing SteamCMD if not detected.
+- BaseInstallManager: Manages base installs, disabled if SteamCMD is not detected.
+- InstanceManager: Allows selection of base install and instance path for new instance installs, disabled if no base installs or SteamCMD is not detected.
+- Added requirements.frontend-management.md and plan.frontend-management.md to document and plan the new frontend management features.
+- Updated BaseInstallManager to accept steamCmdDetected prop and disable actions if SteamCMD is not detected.
 
 **Next steps:**
-- Monitor user feedback for any layout or accessibility issues with the new flexbox design.
-- Continue refining frontend UI for usability and responsiveness as needed.
-
 ## 2025-07-03
 - Backend: Added periodic process status check to ProcessManager. The backend now calls getStatus on all managed server sessions at a regular interval, using listProcesses and portscanner to detect if a port is in use but no process is detected. Emits an error status in this case for improved diagnostics and frontend display. This supports robust monitoring and error reporting for server instance management.
-
 **Next steps:**
 - Integrate new status/error reporting into frontend server/process status UI.
 - Expand tests to cover periodic status checks and error scenarios (e.g., port in use, no process).

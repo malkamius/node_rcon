@@ -1,6 +1,6 @@
 
-import React, { useEffect, useState, useRef } from 'react';
 
+import React, { useEffect, useState, useRef } from 'react';
 
 interface BaseInstall {
   id: string;
@@ -12,13 +12,12 @@ interface BaseInstall {
 }
 
 interface BaseInstallManagerProps {
-  handleUpdate: (path: string) => void;
   ws: WebSocket | null;
+  steamCmdDetected: boolean;
+  handleUpdate: (path: string) => void;
 }
 
-export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUpdate, ws }) => {
-
-
+export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ ws, steamCmdDetected, handleUpdate }) => {
   const [baseInstalls, setBaseInstalls] = useState<BaseInstall[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,14 +107,6 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
   };
 
   // Update
-  // const handleUpdateSelected = () => {
-  //   const bi = baseInstalls.find(b => b.id === selectedId);
-  //   if (bi) {
-  //     setForm({ ...bi });
-  //     setFormError(null);
-  //     setShowUpdate(true);
-  //   }
-  // };
   const handleUpdateSubmit = () => {
     setFormError(null);
     if (!form.path) {
@@ -152,18 +143,15 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Base Install Management</h2>
+    <div style={{ padding: 16, background: '#23272e', borderRadius: 8, marginBottom: 24 }}>
+      <h3>Base Install Management</h3>
       {loading && <div>Loading...</div>}
       {error && <div style={{ color: '#f66' }}>{error}</div>}
-      {/* Controls: Add, Update, Remove */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-        <button onClick={handleAdd} disabled={actionLoading}>Add Base Install</button>
-        <button onClick={handleRemove} disabled={!selectedId || actionLoading}>Remove Selected</button>
+        <button onClick={handleAdd} disabled={actionLoading || !steamCmdDetected}>Add Base Install</button>
+        <button onClick={handleRemove} disabled={!selectedId || actionLoading || !steamCmdDetected}>Remove Selected</button>
       </div>
-      {/* Flexbox-based header and rows */}
       <div style={{ width: '100%', background: '#23272e', color: '#eee', borderRadius: 4, overflow: 'hidden' }}>
-        {/* Header */}
         <div style={{ display: 'flex', fontWeight: 600, borderBottom: '2px solid #333', padding: '8px 0', textAlign: 'left' }}>
           <div style={{ flex: '0 0 40px', paddingLeft: 8 }}></div>
           <div style={{ flex: '1 1 120px', minWidth: 80 }}>ID</div>
@@ -173,7 +161,6 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
           <div style={{ flex: '1 1 120px', minWidth: 80 }}>Update Available</div>
           <div style={{ flex: '1 1 100px', minWidth: 80 }}>Latest Build</div>
         </div>
-        {/* Rows */}
         {baseInstalls.map(b => (
           <div
             key={b.id}
@@ -209,9 +196,10 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
                   }}
                   onClick={e => {
                     e.stopPropagation();
-                    handleUpdate(b.path);
+                    // handleUpdate(b.path); // Not supported if steamcmd not detected
                   }}
                   title="Update base install"
+                  disabled={!steamCmdDetected}
                 >
                   Yes
                 </button>
@@ -236,7 +224,7 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowAdd(false)} disabled={actionLoading}>Cancel</button>
-              <button onClick={handleAddSubmit} disabled={actionLoading}>Add</button>
+              <button onClick={handleAddSubmit} disabled={actionLoading || !steamCmdDetected}>Add</button>
             </div>
           </div>
         </div>
@@ -256,11 +244,11 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowUpdate(false)} disabled={actionLoading}>Cancel</button>
-              <button onClick={handleUpdateSubmit} disabled={actionLoading}>Update</button>
+              <button onClick={handleUpdateSubmit} disabled={actionLoading || !steamCmdDetected}>Update</button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-}
+};
