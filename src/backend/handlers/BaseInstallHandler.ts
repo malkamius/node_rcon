@@ -147,6 +147,10 @@ export class BaseInstallHandler {
       // Save the new path to config
       config.steamCmdPath = steamCmdPath;
       // TODO: Save the updated config, maybe an API to save config
+      const fs = require('fs');
+      const exePath = require('path').join(steamCmdPath, 'steamcmd.exe');
+      const exists = fs.existsSync(exePath);
+      ws.send(JSON.stringify({ type: 'setSteamCmdPath', exists, steamCmdPath, requestId: msg.requestId }));
     },
     installSteamCmd: async (ws: WebSocket, msg: any) => {
       const { sendAdminSocketCommand } = this.context;

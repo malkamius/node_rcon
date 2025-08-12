@@ -35,6 +35,34 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
   const requestIdCounter = useRef(1);
 
   // --- WebSocket message handling ---
+  function mergeBaseInstalls(newList: BaseInstall[]) {
+    setBaseInstalls(prev => {
+      if (!Array.isArray(newList)) return prev;
+      // Map by id for quick lookup
+      const prevMap = Object.fromEntries(prev.map(b => [b.id, b]));
+      let changed = false;
+      const merged = newList.map(newB => {
+        const oldB = prevMap[newB.id];
+        if (!oldB) {
+          changed = true;
+          return newB;
+        }
+        // Compare fields
+        const keys = Object.keys(newB) as (keyof BaseInstall)[];
+        for (const k of keys) {
+          if (newB[k] !== oldB[k]) {
+            changed = true;
+            return { ...oldB, ...newB };
+          }
+        }
+        return oldB;
+      });
+      // If length changed, update
+      if (merged.length !== prev.length) changed = true;
+      return changed ? merged : prev;
+    });
+  }
+
   useEffect(() => {
     if (!ws) return;
     const handleMessage = (event: MessageEvent) => {
@@ -44,7 +72,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
           pendingRequests.current[msg.requestId](msg);
           delete pendingRequests.current[msg.requestId];
         } else if (msg.type === 'baseInstallsUpdated') {
-          setBaseInstalls(msg.baseInstalls || []);
+          mergeBaseInstalls(msg.baseInstalls || []);
         }
       } catch {}
     };
@@ -68,7 +96,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
   const loadBaseInstalls = () => {
     setLoading(true);
     sendWS({ type: 'getBaseInstalls' }, (data) => {
-      setBaseInstalls(data.baseInstalls || []);
+      mergeBaseInstalls(data.baseInstalls || []);
       setLoading(false);
     });
   };
