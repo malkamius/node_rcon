@@ -36,10 +36,10 @@ export const InstallManager: React.FC<InstallManagerProps> = ({ ws, handleUpdate
   }, [ws]);
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: 24, overflow: 'auto' }}>
       <h2>Server Management</h2>
       <SteamCmdManager ws={ws} />
-  <BaseInstallManager ws={ws} steamCmdDetected={steamCmdDetected} handleUpdate={handleUpdateBaseInstallFiles} active={active} />
+      <BaseInstallManager ws={ws} steamCmdDetected={steamCmdDetected} handleUpdate={handleUpdateBaseInstallFiles} active={active} />
       <InstanceManager ws={ws} baseInstalls={baseInstalls} steamCmdDetected={steamCmdDetected} />
     </div>
   );
