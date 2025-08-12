@@ -447,6 +447,7 @@ export const ServerManagerPage: React.FC = () => {
             <InstallManager 
               handleUpdateBaseInstallFiles={handleUpdateBaseInstall}
               ws={wsRef.current}
+              active={activity === 'baseinstalls'}
             />
           ) : null}
         </div>

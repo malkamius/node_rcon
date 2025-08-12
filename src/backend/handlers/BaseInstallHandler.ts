@@ -33,6 +33,10 @@ export class BaseInstallHandler {
   handlers = {
     getBaseInstalls: async (ws: WebSocket, msg: any) => {
       const { config } = this.context;
+      if(config.checkBaseInstallUpdates)
+      {
+        await config.checkBaseInstallUpdates();
+      }
       ws.send(JSON.stringify({ type: 'baseInstalls', baseInstalls: config.baseInstalls || [], requestId: msg.requestId }));
     },
     addBaseInstall: async (ws: WebSocket, msg: any) => {

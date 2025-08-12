@@ -17,7 +17,11 @@ interface BaseInstallManagerProps {
   handleUpdate: (path: string) => void;
 }
 
-export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ ws, steamCmdDetected, handleUpdate }) => {
+interface ExtendedBaseInstallManagerProps extends BaseInstallManagerProps {
+  active?: boolean;
+}
+
+export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ ws, steamCmdDetected, handleUpdate, active }) => {
   const [baseInstalls, setBaseInstalls] = useState<BaseInstall[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,12 +72,28 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ ws, stea
       setLoading(false);
     });
   };
+  // Track previous active state
+  const prevActiveRef = useRef<boolean | undefined>(undefined);
+
+  // Initial load and poll when active
   useEffect(() => {
-    if (ws && ws.readyState === 1) {
+    let poller: NodeJS.Timeout | undefined;
+    if (ws && ws.readyState === 1 && active) {
+      loadBaseInstalls();
+      poller = setInterval(loadBaseInstalls, 10000);
+    }
+    return () => {
+      if (poller) clearInterval(poller);
+    };
+  }, [ws, active]);
+
+  // Refresh when tab becomes active
+  useEffect(() => {
+    if (active && !prevActiveRef.current) {
       loadBaseInstalls();
     }
-    // eslint-disable-next-line
-  }, [ws]);
+    prevActiveRef.current = active;
+  }, [active]);
 
   const handleSelect = (id: string) => setSelectedId(id === selectedId ? null : id);
 

@@ -3,7 +3,13 @@ import { SteamCmdManager } from './SteamCmdManager';
 import { BaseInstallManager } from './BaseInstallManager';
 import { InstanceManager } from './InstanceManager';
 
-export const InstallManager: React.FC<{ ws: WebSocket | null, handleUpdateBaseInstallFiles: (path: string) => void }> = ({ ws, handleUpdateBaseInstallFiles }) => {
+interface InstallManagerProps {
+  ws: WebSocket | null;
+  handleUpdateBaseInstallFiles: (path: string) => void;
+  active?: boolean;
+}
+
+export const InstallManager: React.FC<InstallManagerProps> = ({ ws, handleUpdateBaseInstallFiles, active }) => {
   const [baseInstalls, setBaseInstalls] = useState<any[]>([]);
   const [steamCmdDetected, setSteamCmdDetected] = useState(false);
 
@@ -33,7 +39,7 @@ export const InstallManager: React.FC<{ ws: WebSocket | null, handleUpdateBaseIn
     <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
       <h2>Server Management</h2>
       <SteamCmdManager ws={ws} />
-      <BaseInstallManager ws={ws} steamCmdDetected={steamCmdDetected} handleUpdate={handleUpdateBaseInstallFiles} />
+  <BaseInstallManager ws={ws} steamCmdDetected={steamCmdDetected} handleUpdate={handleUpdateBaseInstallFiles} active={active} />
       <InstanceManager ws={ws} baseInstalls={baseInstalls} steamCmdDetected={steamCmdDetected} />
     </div>
   );

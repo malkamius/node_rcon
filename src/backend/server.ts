@@ -23,7 +23,7 @@ const defaultConfig = {
   },
   servers: [],
   steamcmdPath: '',
-  baseInstallUpdateCheckInterval: 600000, // 10 minutes default
+  baseInstallUpdateCheckInterval: 10000, // 10 seconds default
   baseInstalls: []
 };
 if (!fs.existsSync(configPath)) {
@@ -177,7 +177,7 @@ async function checkBaseInstallUpdates() {
 
 // Start periodic check after config is declared (must be after config is defined)
 function startBaseInstallUpdateInterval() {
-  setInterval(checkBaseInstallUpdates, config.baseInstallUpdateCheckInterval || 600000);
+  setInterval(checkBaseInstallUpdates, config.baseInstallUpdateCheckInterval || 10000);
   checkBaseInstallUpdates();
 }
 
@@ -615,6 +615,7 @@ const handlerContext = {
   auditLog,
   spawn: require('child_process').spawn,
   SESSION_LINES_MAX,
+  checkBaseInstallUpdates
 };
 
 // Instantiate handler classes
