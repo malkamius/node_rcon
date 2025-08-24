@@ -120,7 +120,7 @@ function autoStartServersOnStartup() {
     manuallyStopped: p.manuallyStopped,
     ...p
   }));
-  processManager.autoStart(serverProfiles.filter(p => p.game === 'ark_sa' && p.directory));
+  processManager.autoStart(serverProfiles.filter(p => p.game === 'ark_sa' && p.directory && (p.manuallyStopped !== true)));
 }
 
 if (process.env.NODE_ENV !== 'test') {

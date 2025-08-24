@@ -232,7 +232,7 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
             <table style={{width: '100%', marginBottom: 16, fontSize: '0.98em'}}>
               <thead>
                 <tr style={{color: '#aaa'}}>
-                  <th>Name</th><th>Host</th><th>Port</th><th>Password</th><th></th>
+                  <th>Name</th><th>Host</th><th>Port</th><th>RCON Password</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -277,7 +277,7 @@ export class ServerManagementModal extends React.Component<ServerManagementModal
                     <input name="port" type="number" placeholder="Port" value={editProfile.port} onChange={this.handleChange} style={{ width: '100%', fontSize: '1em', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee' }} />
                   </div>
                   <div style={{ flex: '1 1 120px', minWidth: 120 }}>
-                    <label style={{ display: 'block', marginBottom: 2 }}>Password</label>
+                    <label style={{ display: 'block', marginBottom: 2 }}>RCON Password</label>
                     <input name="password" placeholder="Password" value={editProfile.password} onChange={this.handleChange} style={{ width: '100%', fontSize: '1em', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee' }} />
                   </div>
                   <div style={{ flex: '1 1 140px', minWidth: 120 }}>
