@@ -586,7 +586,7 @@ function broadcast(type: string, payload: any) {
 processManager.on('processStatus', (key: string, status: ProcessStatus) => {
   broadcast('processStatus', { key, status });
 });
-processManager.startPeriodicStatusCheck(1000);
+processManager.startPeriodicStatusCheck(10000); // Check every 10 seconds
 
 // WebSocket: send status updates to clients
 // On WebSocket connection, send all session logs to the client
