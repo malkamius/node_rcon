@@ -77,6 +77,10 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
     // Use the new consumeUnwrittenLines API for efficient updates
     let linesToWrite: TerminalLine[] = [];
     let fullRewrite = false;
+    if (session && newTerminal.current) {
+      session.needsFullRewrite = true;
+      newTerminal.current = false;
+    }
     if (session && typeof (session as any).consumeUnwrittenLines === 'function') {
       // If session is a RconTerminalManager session object, use the method
       const result = (session as any).consumeUnwrittenLines(sessionKey);
@@ -87,11 +91,7 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       linesToWrite = session.lines;
       fullRewrite = true;
     }
-    if (newTerminal.current) {
-      fullRewrite = true;
-      newTerminal.current = false;
-      linesToWrite = session?.lines.concat(session?.unwrittenLines || []) || [];
-    }
+    
     // Format lines for display
     const formattedLines = linesToWrite.map((line: TerminalLine) => {
       if (showTimestamps && line.timestamp) {
