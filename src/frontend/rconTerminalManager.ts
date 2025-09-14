@@ -1,3 +1,7 @@
+// Helper type for unwritten lines result
+export type UnwrittenLinesResult = { lines: TerminalLine[]; fullRewrite: boolean };
+
+// --- class RconTerminalManager below ---
 // Manages terminal state and history for each RCON tab
 export interface TerminalLine {
   text: string;
@@ -9,6 +13,9 @@ export interface TerminalLine {
 export interface TerminalSession {
   key: string;
   lines: TerminalLine[];
+  unwrittenLines: TerminalLine[];
+  needsFullRewrite: boolean;
+  consumeUnwrittenLines(key: string): UnwrittenLinesResult
 }
 
 export class RconTerminalManager {
@@ -19,9 +26,14 @@ export class RconTerminalManager {
    */
   appendLineObject(key: string, line: TerminalLine) {
     const session = this.getSession(key);
-    session.lines.push({ ...line });
+    const entry = { ...line };
+    session.lines.push(entry);
+    session.unwrittenLines.push(entry);
     if (session.lines.length > this.maxLines) {
       session.lines = session.lines.slice(-this.maxLines);
+    }
+    if (session.unwrittenLines.length > this.maxLines) {
+      session.unwrittenLines = session.unwrittenLines.slice(-this.maxLines);
     }
   }
   private sessions: Map<string, TerminalSession> = new Map();
@@ -42,6 +54,8 @@ export class RconTerminalManager {
         if (Array.isArray(data.lines)) {
           const session = this.getSession(key);
           session.lines = data.lines;
+          session.unwrittenLines = [];
+          session.needsFullRewrite = true;
         }
         resolve();
       });
@@ -50,7 +64,7 @@ export class RconTerminalManager {
   
   getSession(key: string): TerminalSession {
     if (!this.sessions.has(key)) {
-      this.sessions.set(key, { key, lines: [] });
+      this.sessions.set(key, { key, lines: [], unwrittenLines: [], needsFullRewrite: false, consumeUnwrittenLines: this.consumeUnwrittenLines.bind(this) });
       // Try to restore from backend
       this.restoreSessionLines(key);
     }
@@ -81,17 +95,33 @@ export class RconTerminalManager {
     if (guid) entry.guid = guid;
     if (type === 'command' || type === 'output') entry.type = type;
     session.lines.push(entry);
+    session.unwrittenLines.push(entry);
     if (session.lines.length > this.maxLines) {
       session.lines = session.lines.slice(-this.maxLines);
     }
-    // // Send to backend
-    // if (store) {
-    //   fetch(`/api/session-lines/${encodeURIComponent(key)}`, {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ line: entry })
-    //   }).catch(() => {});
-    // }
+    if (session.unwrittenLines.length > this.maxLines) {
+      session.unwrittenLines = session.unwrittenLines.slice(-this.maxLines);
+    }
+  }
+
+  /**
+   * Returns and clears unwritten lines and rewrite flag for a session.
+   * If needsFullRewrite is true, returns all lines and resets the flag.
+   */
+  consumeUnwrittenLines(key: string): UnwrittenLinesResult {
+    const session = this.getSession(key);
+    let lines: TerminalLine[];
+    let fullRewrite = false;
+    if (session.needsFullRewrite) {
+      lines = [...session.lines];
+      fullRewrite = true;
+      session.needsFullRewrite = false;
+      session.unwrittenLines = [];
+    } else {
+      lines = [...session.unwrittenLines];
+      session.unwrittenLines = [];
+    }
+    return { lines, fullRewrite };
   }
 
   wsRequest(ws: WebSocket | null, payload: any, cb: (data: any) => void, timeout = 8000) {

@@ -571,15 +571,35 @@ function broadcast(type: string, payload: any) {
 
   // Listen for chatMessage updates
   const chatListener = (key: string, output: string) => {
-    // Store as a sessionLine with type 'output' (or 'chat' if you want to distinguish)
     if (!sessionLines[key]) sessionLines[key] = [];
-    const line: { text: string; timestamp: number; type: 'output' } = { text: output, timestamp: Date.now(), type: 'output' };
-    sessionLines[key].push(line);
+
+    // Remove \r, then split on \n
+    const lines = output.replace(/\r/g, '').split('\n');
+    const newLineEntries: { text: string; timestamp: number; type: 'output' }[] = [];
+
+    for (let rawLine of lines) {
+      if (!rawLine.trim()) continue;
+      let text = rawLine;
+      let timestamp = Date.now();
+      // Check for timestamp at start: [2025-09-14T14:27:46.100Z]
+      const tsMatch = rawLine.match(/^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\]\s*(.*)$/);
+      if (tsMatch) {
+        const parsed = Date.parse(tsMatch[1]);
+        if (!isNaN(parsed)) timestamp = parsed;
+        text = tsMatch[2];
+      }
+    const lineEntry: { text: string; timestamp: number; type: 'output' } = { text, timestamp, type: 'output' };
+    sessionLines[key].push(lineEntry);
+    newLineEntries.push(lineEntry);
+    }
     if (sessionLines[key].length > SESSION_LINES_MAX) {
       sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
     }
     saveSessionLinesToDisk(key, sessionLines[key]);
-    broadcast('sessionLine', { key, line });
+    // Broadcast each new line
+    for (const line of newLineEntries) {
+      broadcast('sessionLine', { key, line });
+    }
   };
   rconManager.on('chatMessage', chatListener);
 
