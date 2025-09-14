@@ -1,3 +1,25 @@
+// Exported async functions for WebSocket backend usage
+/**
+ * Get INI file as object for a given profile and file name
+ */
+export async function getIni(profile: any, file: string): Promise<any> {
+  const iniPath = getIniPath(profile, file);
+  if (!fs.existsSync(iniPath)) return {};
+  const iniRaw = fs.readFileSync(iniPath, 'utf-8');
+  return ini.decode(iniRaw);
+}
+
+/**
+ * Save INI object to file for a given profile and file name
+ */
+export async function saveIni(profile: any, file: string, iniObj: any): Promise<void> {
+  const iniPath = getIniPath(profile, file);
+  const pathMod = require('path');
+  const iniMod = require('./ark-ini');
+  const iniStr = iniMod.encode(iniObj, { whitespace: false });
+  fs.mkdirSync(pathMod.dirname(iniPath), { recursive: true });
+  fs.writeFileSync(iniPath, iniStr, 'utf-8');
+}
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -92,6 +114,12 @@ router.post('/api/server-ini/:profileIdx/:file', express.json(), (req, res) => {
         res.status(500).json({ error: e.message });
     }
     // Deep merge helper: merges b into a, returns new object
+    // Exported deepMerge for use in handlers
+    // (also used internally in REST endpoint above)
+    // Usage: deepMerge(existingIni, newIni)
+    // Returns merged object with new values overwriting old, but old keys not in new are preserved
+    // Handles DuplicateEntry and arrays as in REST endpoint
+    // Exported below for handler usage
     function deepMerge(a: any, b: any): any {
         // Handle null/undefined
         if (a === undefined || a === null) return b;
@@ -133,6 +161,8 @@ router.post('/api/server-ini/:profileIdx/:file', express.json(), (req, res) => {
         // Otherwise, use b (new value overwrites old)
         return b;
     }
+    // Export for handler usage
+    module.exports.deepMerge = deepMerge;
 });
 
 export default router;

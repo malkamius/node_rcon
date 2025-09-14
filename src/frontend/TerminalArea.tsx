@@ -18,10 +18,9 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
   const xtermContainerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  // Track how many lines have been written to the terminal for the current session
-  const writtenLineCount = useRef<number>(0);
+  // Track the last session key for full rewrite detection
   const lastSessionKey = useRef<string | null>(null);
-
+  const newTerminal = useRef<boolean>(true);
   // Initialize xterm.js terminal
   useEffect(() => {
     if (!xtermContainerRef.current) return;
@@ -43,6 +42,7 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       fitAddon.fit();
       termRef.current = term;
       fitAddonRef.current = fitAddon;
+      newTerminal.current = true;
     }
     // Fit on resize
     const handleResize = () => {
@@ -55,58 +55,75 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       termRef.current = null;
       fitAddonRef.current = null;
     };
-  }, []);  // Write session lines to terminal when session, activeTab, or sessionVersion changes
+  }, []);  
+  
+  // Write session lines to terminal when session, activeTab, or sessionVersion changes
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
 
-    // If loading, show loading message and reset writtenLineCount
+    // If loading, show loading message and reset session tracking
     if (loading) {
       term.clear();
       term.reset();
       term.write('Loading history...');
-      writtenLineCount.current = 0;
       lastSessionKey.current = session?.key || null;
       fitAddonRef.current?.fit();
       return;
     }
-
-    // If session or tab changed, or sessionVersion changed, do a full clear and write all lines
+    
     const sessionKey = session?.key || null;
-    const lines = session && session.lines ? session.lines : [];
     const isNewSession = lastSessionKey.current !== sessionKey;
-    const isCleared = writtenLineCount.current > lines.length;
+    // Use the new consumeUnwrittenLines API for efficient updates
+    let linesToWrite: TerminalLine[] = [];
+    let fullRewrite = false;
+    if (session && (newTerminal.current || isNewSession)) {
+      session.needsFullRewrite = true;
+      newTerminal.current = false;
+    }
+    if (session && typeof (session as any).consumeUnwrittenLines === 'function') {
+      // If session is a RconTerminalManager session object, use the method
+      const result = (session as any).consumeUnwrittenLines(sessionKey);
+      linesToWrite = result.lines;
+      fullRewrite = result.fullRewrite;
+    } else if (session && Array.isArray(session.lines)) {
+      // Fallback: just write all lines
+      linesToWrite = session.lines;
+      fullRewrite = true;
+    }
+    
+    // Format lines for display
+    const formattedLines = linesToWrite.map((line: TerminalLine) => {
+      if (showTimestamps && line.timestamp) {
+        const date = new Date(line.timestamp);
+        // Format: DD/MM HH:MM:SS
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const time = date.toLocaleTimeString([], { hour12: false });
+        return `[${day}/${month} ${time}] ${line.text}`;
+      } else {
+        return line.text;
+      }
+    });
 
-    // If "Loading history..." is present, clear it before writing new lines
-    // (xterm.js does not provide a way to read terminal contents, so we use writtenLineCount as a proxy)
-    if ((isNewSession || isCleared || writtenLineCount.current === 0) && !loading) {
+    if (fullRewrite) {
       term.clear();
       term.reset();
-      writtenLineCount.current = 0;
+      if (formattedLines.length > 0) {
+        term.write(formattedLines.join('\r\n') + '\r\n');
+      }
+      lastSessionKey.current = sessionKey;
+      fitAddonRef.current?.fit();
+      return;
     }
 
     // Write only new lines
-    if (lines.length > writtenLineCount.current) {
-      const newLines = lines.slice(writtenLineCount.current);
-      const formatted = newLines.map((line: TerminalLine) => {
-        if (showTimestamps && line.timestamp) {
-          const date = new Date(line.timestamp);
-          // Format: DD/MM HH:MM:SS
-          const day = String(date.getDate()).padStart(2, '0');
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const time = date.toLocaleTimeString([], { hour12: false });
-          return `[${day}/${month} ${time}] ${line.text}`;
-        } else {
-          return line.text;
-        }
-      }).join('\r\n').replace(/\x1b\[2J/g, '');
-      if (formatted) {
-        term.write(formatted + '\r\n');
+    if (formattedLines.length > 0) {
+      const toWrite = formattedLines.join('\r\n').replace(/\x1b\[2J/g, '');
+      if (toWrite.length > 0) {
+        term.write(toWrite + '\r\n');
       }
-      writtenLineCount.current = lines.length;
     }
-
-    lastSessionKey.current = sessionKey;
     fitAddonRef.current?.fit();
   }, [session, activeTab, sessionVersion, showTimestamps, loading]);
 

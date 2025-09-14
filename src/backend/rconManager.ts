@@ -101,14 +101,16 @@ export class RconManager extends EventEmitter {
       profile.game &&
       (profile.game === 'ark_se' || profile.game === 'ark_sa')
     ) {
-      const interval = Math.max(2, profile.features.currentPlayers.updateInterval || 10);
+      const interval = Math.max(2, profile.features.currentPlayers.updateInterval || 1);
       const pollPlayers = async () => {
         const conn = this.connections.get(key);
         if (conn && conn.status === 'connected' && conn.rcon) {
           try {
             const output = await conn.rcon.send('ListPlayers');
             this.emit('currentPlayers', key, output);
-          } catch (e) {}
+          } catch (e) {
+            console.error('Error polling current players for', key, e);
+          }
         }
       };
       this.pollingIntervals.set(key, setInterval(pollPlayers, interval * 1000));
@@ -133,7 +135,9 @@ export class RconManager extends EventEmitter {
               lastChatRaw = trimmed;
               this.emit('chatMessage', key, output.trim());
             }
-          } catch (e) {}
+          } catch (e) {
+            console.error('Error polling chat for', key, e);
+          }
         }
       };
       // Use a separate interval for chat polling
@@ -143,11 +147,18 @@ export class RconManager extends EventEmitter {
 
   ensureConnection(profile: ServerProfile) {
     const key = profile.host + ':' + profile.port;
-    if (this.connections.has(key)) return;
+    if (this.connections.has(key)) {
+      //console.log(`[RCON DEBUG] ensureConnection: Connection already exists for ${key}`);
+      return;
+    }
+    //console.log(`[RCON DEBUG] ensureConnection: No connection for ${key}, calling connect`);
     this.connect(profile);
   }
 
   async connect(profile: ServerProfile) {
+    //console.log(`[RCON DEBUG] connect: Called for ${profile.host}:${profile.port}`);
+    //return;
+    // --- The code below is currently short-circuited ---
     const key = profile.host + ':' + profile.port;
     await this.acquireLock(key);
     try {
@@ -194,7 +205,9 @@ export class RconManager extends EventEmitter {
           rcon.off('end', () => this.handleDisconnect(profile));
           rcon.off('error', () => this.handleDisconnect(profile));
           // Call end only once and await it
-          await rcon.end();
+          if (rcon.socket && rcon.socket.writable) {
+            await rcon.end();
+          }
         }
       } catch (err) {
         // Log error but do not crash

@@ -1,6 +1,6 @@
 
-import React, { useEffect, useState } from 'react';
 
+import React, { useEffect, useState, useRef } from 'react';
 
 interface BaseInstall {
   id: string;
@@ -12,12 +12,16 @@ interface BaseInstall {
 }
 
 interface BaseInstallManagerProps {
+  ws: WebSocket | null;
+  steamCmdDetected: boolean;
   handleUpdate: (path: string) => void;
 }
 
-export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUpdate }) => {
+interface ExtendedBaseInstallManagerProps extends BaseInstallManagerProps {
+  active?: boolean;
+}
 
-
+export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ ws, steamCmdDetected, handleUpdate, active }) => {
   const [baseInstalls, setBaseInstalls] = useState<BaseInstall[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,23 +31,97 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
   const [form, setForm] = useState<Partial<BaseInstall>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const pendingRequests = useRef<Record<string, (data: any) => void>>({});
+  const requestIdCounter = useRef(1);
+
+  // --- WebSocket message handling ---
+  function mergeBaseInstalls(newList: BaseInstall[]) {
+    setBaseInstalls(prev => {
+      if (!Array.isArray(newList)) return prev;
+      // Map by id for quick lookup
+      const prevMap = Object.fromEntries(prev.map(b => [b.id, b]));
+      let changed = false;
+      const merged = newList.map(newB => {
+        const oldB = prevMap[newB.id];
+        if (!oldB) {
+          changed = true;
+          return newB;
+        }
+        // Compare fields
+        const keys = Object.keys(newB) as (keyof BaseInstall)[];
+        for (const k of keys) {
+          if (newB[k] !== oldB[k]) {
+            changed = true;
+            return { ...oldB, ...newB };
+          }
+        }
+        return oldB;
+      });
+      // If length changed, update
+      if (merged.length !== prev.length) changed = true;
+      return changed ? merged : prev;
+    });
+  }
+
+  useEffect(() => {
+    if (!ws) return;
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg && msg.requestId && pendingRequests.current[msg.requestId]) {
+          pendingRequests.current[msg.requestId](msg);
+          delete pendingRequests.current[msg.requestId];
+        } else if (msg.type === 'baseInstallsUpdated') {
+          mergeBaseInstalls(msg.baseInstalls || []);
+        }
+      } catch {}
+    };
+    ws.addEventListener('message', handleMessage);
+    return () => {
+      ws.removeEventListener('message', handleMessage);
+    };
+  }, [ws]);
+
+  function sendWS(payload: any, cb?: (data: any) => void) {
+    if (!ws || ws.readyState !== 1) {
+      setError('WebSocket not connected');
+      return;
+    }
+    const requestId = 'req' + (requestIdCounter.current++);
+    const msg = { ...payload, requestId };
+    if (cb) pendingRequests.current[requestId] = cb;
+    ws.send(JSON.stringify(msg));
+  }
 
   const loadBaseInstalls = () => {
     setLoading(true);
-    fetch('/api/base-installs')
-      .then(res => res.json())
-      .then(data => {
-        setBaseInstalls(data.baseInstalls || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError('Failed to load base installs');
-        setLoading(false);
-      });
+    sendWS({ type: 'getBaseInstalls' }, (data) => {
+      mergeBaseInstalls(data.baseInstalls || []);
+      setLoading(false);
+    });
   };
+  // Track previous active state
+  const prevActiveRef = useRef<boolean | undefined>(undefined);
+
+  // Initial load and poll when active
   useEffect(() => {
-    loadBaseInstalls();
-  }, []);
+    let poller: NodeJS.Timeout | undefined;
+    if (ws && ws.readyState === 1 && active) {
+      loadBaseInstalls();
+      poller = setInterval(loadBaseInstalls, 10000);
+    }
+    return () => {
+      if (poller) clearInterval(poller);
+    };
+  }, [ws, active]);
+
+  // Refresh when tab becomes active
+  useEffect(() => {
+    if (active && !prevActiveRef.current) {
+      loadBaseInstalls();
+    }
+    prevActiveRef.current = active;
+  }, [active]);
 
   const handleSelect = (id: string) => setSelectedId(id === selectedId ? null : id);
 
@@ -53,7 +131,7 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
     setFormError(null);
     setShowAdd(true);
   };
-  const handleAddSubmit = async () => {
+  const handleAddSubmit = () => {
     setFormError(null);
     if (!form.id || !form.path) {
       setFormError('ID and Path are required.');
@@ -65,36 +143,19 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
     }
     setActionLoading(true);
     setError(null);
-    try {
-      const res = await fetch('/api/base-installs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+    sendWS({ type: 'addBaseInstall', data: form }, (res) => {
       if (!res.ok) {
-        const msg = await res.text();
-        setFormError(msg || 'Failed to add base install');
-        return;
+        setFormError(res.error || 'Failed to add base install');
+      } else {
+        setShowAdd(false);
+        loadBaseInstalls();
       }
-      setShowAdd(false);
-      loadBaseInstalls();
-    } catch (e) {
-      setFormError('Failed to add base install');
-    } finally {
       setActionLoading(false);
-    }
+    });
   };
 
   // Update
-  // const handleUpdateSelected = () => {
-  //   const bi = baseInstalls.find(b => b.id === selectedId);
-  //   if (bi) {
-  //     setForm({ ...bi });
-  //     setFormError(null);
-  //     setShowUpdate(true);
-  //   }
-  // };
-  const handleUpdateSubmit = async () => {
+  const handleUpdateSubmit = () => {
     setFormError(null);
     if (!form.path) {
       setFormError('Path is required.');
@@ -102,61 +163,43 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
     }
     setActionLoading(true);
     setError(null);
-    try {
-      const res = await fetch(`/api/base-installs/${encodeURIComponent(selectedId!)}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        }
-      );
+    sendWS({ type: 'updateBaseInstall', id: selectedId, data: form }, (res) => {
       if (!res.ok) {
-        const msg = await res.text();
-        setFormError(msg || 'Failed to update base install');
-        return;
+        setFormError(res.error || 'Failed to update base install');
+      } else {
+        setShowUpdate(false);
+        loadBaseInstalls();
       }
-      setShowUpdate(false);
-      loadBaseInstalls();
-    } catch (e) {
-      setFormError('Failed to update base install');
-    } finally {
       setActionLoading(false);
-    }
+    });
   };
 
   // Remove
-  const handleRemove = async () => {
+  const handleRemove = () => {
     if (!selectedId) return;
     setActionLoading(true);
     setError(null);
-    try {
-      const res = await fetch(`/api/base-installs/${encodeURIComponent(selectedId)}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to remove base install');
-      setSelectedId(null);
-      loadBaseInstalls();
-    } catch (e) {
-      setError('Failed to remove base install');
-    } finally {
+    sendWS({ type: 'removeBaseInstall', id: selectedId }, (res) => {
+      if (!res.ok) {
+        setError(res.error || 'Failed to remove base install');
+      } else {
+        setSelectedId(null);
+        loadBaseInstalls();
+      }
       setActionLoading(false);
-    }
+    });
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Base Install Management</h2>
+    <div style={{ padding: 16, background: '#23272e', borderRadius: 8, marginBottom: 24 }}>
+      <h3>Base Install Management</h3>
       {loading && <div>Loading...</div>}
       {error && <div style={{ color: '#f66' }}>{error}</div>}
-      {/* Controls: Add, Update, Remove */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-        <button onClick={handleAdd} disabled={actionLoading}>Add Base Install</button>
-        {/* <button onClick={handleUpdateSelected} disabled={!selectedId || actionLoading}>Update Selected</button> */}
-        <button onClick={handleRemove} disabled={!selectedId || actionLoading}>Remove Selected</button>
+        <button onClick={handleAdd} disabled={actionLoading || !steamCmdDetected}>Add Base Install</button>
+        <button onClick={handleRemove} disabled={!selectedId || actionLoading || !steamCmdDetected}>Remove Selected</button>
       </div>
-      {/* Flexbox-based header and rows */}
       <div style={{ width: '100%', background: '#23272e', color: '#eee', borderRadius: 4, overflow: 'hidden' }}>
-        {/* Header */}
         <div style={{ display: 'flex', fontWeight: 600, borderBottom: '2px solid #333', padding: '8px 0', textAlign: 'left' }}>
           <div style={{ flex: '0 0 40px', paddingLeft: 8 }}></div>
           <div style={{ flex: '1 1 120px', minWidth: 80 }}>ID</div>
@@ -166,7 +209,6 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
           <div style={{ flex: '1 1 120px', minWidth: 80 }}>Update Available</div>
           <div style={{ flex: '1 1 100px', minWidth: 80 }}>Latest Build</div>
         </div>
-        {/* Rows */}
         {baseInstalls.map(b => (
           <div
             key={b.id}
@@ -202,9 +244,10 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
                   }}
                   onClick={e => {
                     e.stopPropagation();
-                    handleUpdate(b.path);
+                    // handleUpdate(b.path); // Not supported if steamcmd not detected
                   }}
                   title="Update base install"
+                  disabled={!steamCmdDetected}
                 >
                   Yes
                 </button>
@@ -229,7 +272,7 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowAdd(false)} disabled={actionLoading}>Cancel</button>
-              <button onClick={handleAddSubmit} disabled={actionLoading}>Add</button>
+              <button onClick={handleAddSubmit} disabled={actionLoading || !steamCmdDetected}>Add</button>
             </div>
           </div>
         </div>
@@ -249,11 +292,11 @@ export const BaseInstallManager: React.FC<BaseInstallManagerProps> = ({ handleUp
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowUpdate(false)} disabled={actionLoading}>Cancel</button>
-              <button onClick={handleUpdateSubmit} disabled={actionLoading}>Update</button>
+              <button onClick={handleUpdateSubmit} disabled={actionLoading || !steamCmdDetected}>Update</button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-}
+};

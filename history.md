@@ -1,18 +1,93 @@
+## 2025-09-14 (cont)
+
+- Join/leave session line messages now include the full player string (name and guid if present) in the chat window, while the currentPlayers list still only shows the name.
+## 2025-09-14
+
+- Updated player name filtering in `playersListener` (server.ts):
+  - Now parses player strings to extract only the player name for the `currentPlayers` list.
+  - If a GUID is present (e.g., 'Name, GUID'), it is included in session lines for join/leave events, but not in the `currentPlayers` broadcast.
+  - Ensures only the player name (not index, not GUID) is shown in the currentPlayers list, but GUID is tracked in session lines for audit/logging.
+
+### Next steps
+- Review frontend handling of currentPlayers and sessionLine events to ensure correct display and usage of player names and GUIDs if needed.
+# 2025-07-06
+- Refactored `installInstance` in `BaseInstallHandler.ts` to use `sendAdminSocketCommand` for running the PowerShell script with admin privileges, instead of spawning the process directly. This ensures all instance installs are executed with the required permissions via the admin socket.
+# 2025-07-06
+- Removed deprecated REST endpoint `/api/install-instance` from `server.ts`. Instance installs are now handled exclusively via WebSocket and executed using `adminSocketClient` to ensure admin permissions.
+- Ensured all instance install actions are routed through the WebSocket backend, as per requirements.
+
+Next steps:
+- Confirm all frontend and backend code paths use the WebSocket for instance installs.
+- Remove any remaining references to the old REST endpoint in documentation or client code if present.
+# 2025-07-06
+- Refactored WebSocket message handling in `server.ts`:
+  - Split message handlers into domain-specific handler classes: `SessionHandler`, `ProfileHandler`, `BaseInstallHandler`, `IniHandler` (in `src/backend/handlers/`).
+  - Each handler exposes a map of message type to handler function.
+  - `server.ts` now instantiates handlers and dispatches messages via a master handler map.
+  - Added `handlers/README.md` documenting the message type to handler mapping.
+- Next steps:
+  - Test all WebSocket message types for correct routing and behavior.
+  - Consider further splitting or documenting handler context dependencies.
+  - Update requirements and plan files to reflect this refactor.
+## 2025-07-06
+- Migrated all session line and process status frontend fetch calls (`rconTerminalManager.ts`, `processStatusApi.ts`) to use the persistent WebSocket connection (`wsRequest`).
+- Added WebSocket backend handler for `getProcessStatus` to support process status requests from the frontend.
+- All session line actions (get, clear) and process status are now handled via the main WebSocket connection.
+- Next steps: Review and migrate any remaining frontend fetch calls to WebSocket as needed.
+## 2025-07-06
+- Completed migration of all INI/config and process control actions in `ServerConfigTab.tsx` to use the shared WebSocket connection (`wsRequest`).
+- Backend (`server.ts`) now supports `getServerIni`, `saveServerIni`, `startServer`, and `stopServer` WebSocket message types for these actions.
+- Confirmed requirements and plan files for server config/INI management are up to date for this feature scope.
+- Next steps: Continue migrating any remaining frontend fetch calls to WebSocket and add backend handlers as needed.
+## 2024-06-09
+- Added WebSocket backend handlers in `server.ts` for `getServerIni`, `saveServerIni`, `startServer`, and `stopServer` to support frontend migration from fetch to WebSocket for INI/config and process control actions.
+- Added `getIni` and `saveIni` async exports to `iniApi.ts` for direct backend usage by WebSocket handlers.
+- Next steps: Continue migrating remaining frontend fetch calls to use the shared WebSocket and add backend handlers as needed.
+
+## 2025-07-06
+- Frontend: Refactored `ServerManagerPage.tsx` to use the main WebSocket connection for all backend API calls to `/api/profiles` (get/save) and `/api/session-lines/:key` (get). Added a `wsRequest` utility for request/response messaging over WebSocket. Removed all `fetch` calls for these endpoints from this file.
+- Frontend: Refactored `ServerManagementModal.tsx` to use the parent-provided `onSave` prop (which uses the shared WebSocket connection) for saving server profiles. Removed all direct `fetch` calls from this file. Profile management is now fully WebSocket-based and consistent with the rest of the app.
+- This continues the migration of all frontend fetch calls to use the main WebSocket connection managed by the app. No backend changes were required for this step.
+
+**Next steps:**
+- Refactor the next frontend file (`ServerConfigTab.tsx`) to use the WebSocket for INI/config management actions.
+- Continue migrating all fetch calls in `src/frontend/**` to use the shared WebSocket connection.
+- Update requirements and plan files if the feature scope or implementation details change.
+
+**Next steps:**
+- Refactor the next frontend file (`ServerManagementModal.tsx`) to use the WebSocket for profile management actions.
+- Continue migrating all fetch calls in `src/frontend/**` to use the shared WebSocket connection.
+- Update requirements and plan files if the feature scope or implementation details change.
+- Frontend: Refactored `RconClientWindow` to use the shared application WebSocket for all actions, including clearing the log. Removed its own WebSocket setup/cleanup logic. The clear log action is now delegated to the parent via a new `onClearLog` prop, which uses the main WebSocket connection managed by `ServerManagerPage`. This ensures consistent disconnect/reconnect handling and avoids duplicate WebSocket connections.
+
+**Next steps:**
+- Test RCON terminal log clearing and ensure disconnect modal appears as expected on backend disconnects.
+- Monitor for any regressions in RCON command or log handling after WebSocket refactor.
+
+## 2025-07-05
+- Backend: Updated `Install-Instance.ps1` so that `Mods` and `ModsUserData` folders under `ShooterGame\Binaries\Win64\ShooterGame` are now always created as real folders (not junctioned or symlinked) in new server instances. These folders are excluded from the dynamic linking process and are created as standard directories in the instance.
+
+**Next steps:**
+- Test instance creation to confirm Mods and ModsUserData are real folders and not links.
+- Update documentation if further exclusions or instance-specific folders are needed.
+
 ## 2025-07-04
 - Backend: Fixed bug in WebSocket handler for `updatebaseinstall`—now properly awaits async `processManager.isRunning` for all affected profiles before allowing a base install update. Prevents race conditions and ensures updates only run when all related servers are stopped.
 
 **Next steps:**
 - Monitor for any issues with async process status checks during base install updates.
--## 2025-07-04
-- Frontend: Replaced the table in `BaseInstallManager.tsx` with a flexbox-based layout for base install management. This improves alignment, visual consistency, and layout flexibility. The new design ensures headers and values are properly aligned and enhances accessibility.
+## 2025-07-21
+- Split BaseInstallManager frontend into three modular panels: SteamCmdManager, BaseInstallManager, and InstanceManager.
+- Created new ServerManagementPage to host all three panels for server management.
+- SteamCmdManager: Allows setting/checking SteamCMD path and installing SteamCMD if not detected.
+- BaseInstallManager: Manages base installs, disabled if SteamCMD is not detected.
+- InstanceManager: Allows selection of base install and instance path for new instance installs, disabled if no base installs or SteamCMD is not detected.
+- Added requirements.frontend-management.md and plan.frontend-management.md to document and plan the new frontend management features.
+- Updated BaseInstallManager to accept steamCmdDetected prop and disable actions if SteamCMD is not detected.
 
 **Next steps:**
-- Monitor user feedback for any layout or accessibility issues with the new flexbox design.
-- Continue refining frontend UI for usability and responsiveness as needed.
-
 ## 2025-07-03
 - Backend: Added periodic process status check to ProcessManager. The backend now calls getStatus on all managed server sessions at a regular interval, using listProcesses and portscanner to detect if a port is in use but no process is detected. Emits an error status in this case for improved diagnostics and frontend display. This supports robust monitoring and error reporting for server instance management.
-
 **Next steps:**
 - Integrate new status/error reporting into frontend server/process status UI.
 - Expand tests to cover periodic status checks and error scenarios (e.g., port in use, no process).

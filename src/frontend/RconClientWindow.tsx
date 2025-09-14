@@ -35,12 +35,14 @@ interface RconClientAppProps {
   terminalManager?: RconTerminalManager;
   sessionVersion?: number;
   onSendCommand?: (key: string, command: string, guid: string) => void;
-  currentPlayers?: Record<string, { players: string[]; lastUpdate: number | null }>;
+  onClearLog?: (key: string) => void;
+  currentPlayers?: { players: string[]; lastUpdate: number | null };
   disabled?: boolean; // If true, disables input and send button
 }
 
 // If terminalManager/sessionVersion are not provided, create a local one (for backward compatibility/testing)
-const defaultTerminalManager = new RconTerminalManager();
+const defaultTerminalManager = new RconTerminalManager(100, { current: null } as React.MutableRefObject<WebSocket | null>);
+
 
 export const RconClientWindow: React.FC<RconClientAppProps> = ({
   serverProfiles,
@@ -52,11 +54,11 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   terminalManager = defaultTerminalManager,
   sessionVersion = 0,
   onSendCommand,
-  currentPlayers = {},
+  onClearLog,
+  currentPlayers,
   disabled = false,
 }) => {
   const [command, setCommand] = useState('');
-  const wsRef = useRef<WebSocket | null>(null);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const [playersWidth, setPlayersWidth] = useState<number>(240);
@@ -69,6 +71,7 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
 
   const selectedProfile = selectedKey ? serverProfiles.find(p => `${p.host}:${p.port}` === selectedKey) : null;
 
+
   // Set showTimestamps from profile (default true)
   useEffect(() => {
     if (selectedProfile) {
@@ -76,26 +79,10 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
     }
   }, [selectedProfile]);
 
-  // Setup WebSocket for clear log
-  useEffect(() => {
-    if (!selectedKey) return;
-    if (wsRef.current) return;
-    // Use same protocol as page
-    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${wsProto}://${window.location.host}`;
-    const ws = new window.WebSocket(wsUrl);
-    wsRef.current = ws;
-    ws.onopen = () => {};
-    ws.onclose = () => { wsRef.current = null; };
-    return () => {
-      ws.close();
-      wsRef.current = null;
-    };
-  }, [selectedKey]);
-
+  // Remove local WebSocket logic. Use onClearLog prop for clear log action.
   const handleClearLog = () => {
-    if (!selectedKey || !wsRef.current || wsRef.current.readyState !== 1) return;
-    wsRef.current.send(JSON.stringify({ type: 'clearSessionLines', key: selectedKey }));
+    if (!selectedKey || !onClearLog) return;
+    onClearLog(selectedKey);
   };
   const session = selectedKey ? terminalManager.getSession(selectedKey) : null;
   const procStatus = selectedKey ? statusMap[selectedKey] : undefined;
@@ -112,11 +99,14 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   let showPlayers = false;
   let playersList: string[] = [];
   let playersLastUpdate: number | null = null;
-  if (selectedProfile && selectedProfile.features?.currentPlayers?.enabled) {
+  if (selectedProfile && selectedProfile.features?.currentPlayers?.enabled && currentPlayers) {
     showPlayers = true;
-    if (selectedKey && currentPlayers[selectedKey]) {
-      playersList = currentPlayers[selectedKey].players;
-      playersLastUpdate = currentPlayers[selectedKey].lastUpdate;
+    if (selectedKey && currentPlayers) {
+      playersList = currentPlayers.players;
+      playersLastUpdate = currentPlayers.lastUpdate;
+    } else {
+      playersList = [];
+      playersLastUpdate = null;
     }
   }
 

@@ -1,11 +1,4 @@
-// NOTE: All Express API endpoint declarations (app.get, app.post, etc.) must be placed after:
-//   1. All imports
-//   2. All middleware (app.use, static, etc.)
-//   3. The line: const app = express();
-//   4. All helper and config declarations
-// Place new endpoints just before server.listen at the end of this file.
-
-
+// File: src/backend/server.ts
 import express, { Request, Response } from 'express';
 import { ArkSAProcessManager, ProcessManager, ServerProcessProfile, ProcessStatus } from './ProcessManager';
 import http from 'http';
@@ -30,7 +23,7 @@ const defaultConfig = {
   },
   servers: [],
   steamcmdPath: '',
-  baseInstallUpdateCheckInterval: 600000, // 10 minutes default
+  baseInstallUpdateCheckInterval: 10000, // 10 seconds default
   baseInstalls: []
 };
 if (!fs.existsSync(configPath)) {
@@ -42,6 +35,8 @@ const app = express();
 export { app };
 
 // --- Audit Logging Utility ---
+
+// --- Instance Install API removed: now handled by WebSocket and adminSocketClient for admin permissions ---
 const AUDIT_LOG_PATH = require('path').join(__dirname, '../../logs/audit.log');
 function auditLog(event: string, details: any) {
   const entry = {
@@ -125,7 +120,7 @@ function autoStartServersOnStartup() {
     manuallyStopped: p.manuallyStopped,
     ...p
   }));
-  processManager.autoStart(serverProfiles.filter(p => p.game === 'ark_sa' && p.directory));
+  processManager.autoStart(serverProfiles.filter(p => p.game === 'ark_sa' && p.directory && (p.manuallyStopped !== true)));
 }
 
 if (process.env.NODE_ENV !== 'test') {
@@ -182,7 +177,7 @@ async function checkBaseInstallUpdates() {
 
 // Start periodic check after config is declared (must be after config is defined)
 function startBaseInstallUpdateInterval() {
-  setInterval(checkBaseInstallUpdates, config.baseInstallUpdateCheckInterval || 600000);
+  setInterval(checkBaseInstallUpdates, config.baseInstallUpdateCheckInterval || 10000);
   checkBaseInstallUpdates();
 }
 
@@ -516,31 +511,46 @@ function broadcast(type: string, payload: any) {
     // output is expected to be a string with player names, one per line or comma separated
     // Try to parse player names
 
-    let players: string[] = [];
+    let playerRawList: string[] = [];
     if (output === null || output === undefined || output.trim() === 'No Players Connected' || output.trim() === 'No players online') {
-      players = [];
+      playerRawList = [];
     } else if (output.includes('\n')) {
-      players = output.split(/\r?\n/).map(p => p.trim()).filter(Boolean);
+      playerRawList = output.split(/\r?\n/).map(p => p.trim()).filter(Boolean);
     } else if (output.includes(',')) {
-      players = output.split(',').map(p => p.trim()).filter(Boolean);
+      playerRawList = output.split(',').map(p => p.trim()).filter(Boolean);
     } else if (output.trim()) {
-      players = [output.trim()];
+      playerRawList = [output.trim()];
     }
     // Remove player index (e.g., '0. ') from each player string
-    players = players.map(p => p.replace(/^\d+\.\s*/, ''));
+    playerRawList = playerRawList.map(p => p.replace(/^\d+\.\s*/, ''));
 
+    // Parse player name and guid if present (format: "Name, GUID")
+    type PlayerObj = { name: string, guid?: string, raw: string };
+    const playerObjs: PlayerObj[] = playerRawList.map(raw => {
+      // Try to split by comma, but only if there are two parts and the second looks like a guid
+      const parts = raw.split(',').map(s => s.trim());
+      if (parts.length === 2 && /^[0-9a-f]{16,}$/.test(parts[1].replace(/-/g, ''))) {
+        return { name: parts[0], guid: parts[1], raw };
+      } else {
+        return { name: raw, raw };
+      }
+    });
+
+    // For currentPlayers, only use the name
+    const playerNames = playerObjs.map(p => p.name);
     if (!connectedPlayers[key]) connectedPlayers[key] = new Set();
     const prevPlayers = new Set(connectedPlayers[key]);
-    const currentPlayers = new Set(players);
+    const currentPlayers = new Set(playerNames);
 
     // Detect joins
-    for (const player of currentPlayers) {
-      if (!prevPlayers.has(player)) {
+    for (const p of playerObjs) {
+      if (!prevPlayers.has(p.name)) {
         // Player joined
-        const msg = `PLAYER CONNECTED: ${player}`;
-        const line: { text: string; timestamp: number; type: 'output' } = { text: msg, timestamp: Date.now(), type: 'output' };
+        // Show full string (name and guid if present) in the message
+        const msg = `PLAYER CONNECTED: ${p.raw}`;
+        const line: { text: string; timestamp: number; type: 'output'; guid?: string } = { text: msg, timestamp: Date.now(), type: 'output' };
+        if (p.guid) line.guid = p.guid;
         if (!sessionLines[key]) sessionLines[key] = [];
-      
         sessionLines[key].push(line);
         if (sessionLines[key].length > SESSION_LINES_MAX) {
           sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
@@ -549,195 +559,148 @@ function broadcast(type: string, payload: any) {
       }
     }
     // Detect leaves
-    for (const player of prevPlayers) {
-      if (!currentPlayers.has(player)) {
-        // Player left
-        const msg = `PLAYER DISCONNECTED: ${player}`;
-        const line: { text: string; timestamp: number; type: 'output' } = { text: msg, timestamp: Date.now(), type: 'output' };
+    for (const prevName of prevPlayers) {
+      if (!currentPlayers.has(prevName)) {
+        // Try to find the raw string for the leaving player (if present in previous set)
+        // If not found, just use the name
+        const prevObj = playerObjs.find(p => p.name === prevName);
+        const raw = prevObj ? prevObj.raw : prevName;
+        const msg = `PLAYER DISCONNECTED: ${raw}`;
+        const line: { text: string; timestamp: number; type: 'output'; guid?: string } = { text: msg, timestamp: Date.now(), type: 'output' };
+        if (prevObj && prevObj.guid) line.guid = prevObj.guid;
         if (!sessionLines[key]) sessionLines[key] = [];
-      
         sessionLines[key].push(line);
         if (sessionLines[key].length > SESSION_LINES_MAX) {
           sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
         }
         saveSessionLinesToDisk(key, sessionLines[key]);
-          broadcast('sessionLine', { key, line });
-        }
+        broadcast('sessionLine', { key, line });
+      }
     }
 
     // Update tracked players
     connectedPlayers[key] = currentPlayers;
 
-    // Still broadcast the currentPlayers list as before
-    const line: { text: string; timestamp: number; type: 'output' } = { text: output, timestamp: Date.now(), type: 'output' };
-    broadcast('currentPlayers', { key, line });
+    // Still broadcast the currentPlayers list as before (names only)
+    broadcast('currentPlayers', { key, currentPlayers: Array.from(currentPlayers) });
   };
   rconManager.on('currentPlayers', playersListener);
 
   // Listen for chatMessage updates
   const chatListener = (key: string, output: string) => {
-    // Store as a sessionLine with type 'output' (or 'chat' if you want to distinguish)
     if (!sessionLines[key]) sessionLines[key] = [];
-    const line: { text: string; timestamp: number; type: 'output' } = { text: output, timestamp: Date.now(), type: 'output' };
-    sessionLines[key].push(line);
+
+    // Remove \r, then split on \n
+    const lines = output.replace(/\r/g, '').split('\n');
+    const newLineEntries: { text: string; timestamp: number; type: 'output' }[] = [];
+
+    for (let rawLine of lines) {
+      if (!rawLine.trim()) continue;
+      let text = rawLine;
+      let timestamp = Date.now();
+      // Check for timestamp at start: [2025-09-14T14:27:46.100Z]
+      const tsMatch = rawLine.match(/^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\]\s*(.*)$/);
+      if (tsMatch) {
+        const parsed = Date.parse(tsMatch[1]);
+        if (!isNaN(parsed)) timestamp = parsed;
+        text = tsMatch[2];
+      }
+    const lineEntry: { text: string; timestamp: number; type: 'output' } = { text, timestamp, type: 'output' };
+    sessionLines[key].push(lineEntry);
+    newLineEntries.push(lineEntry);
+    }
     if (sessionLines[key].length > SESSION_LINES_MAX) {
       sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
     }
     saveSessionLinesToDisk(key, sessionLines[key]);
-    broadcast('sessionLine', { key, line });
+    // Broadcast each new line
+    for (const line of newLineEntries) {
+      broadcast('sessionLine', { key, line });
+    }
   };
   rconManager.on('chatMessage', chatListener);
 
 processManager.on('processStatus', (key: string, status: ProcessStatus) => {
   broadcast('processStatus', { key, status });
 });
-processManager.startPeriodicStatusCheck(1000);
+processManager.startPeriodicStatusCheck(10000); // Check every 10 seconds
 
 // WebSocket: send status updates to clients
 // On WebSocket connection, send all session logs to the client
+
+// --- WebSocket Message Handler Refactor ---
+import { SessionHandler } from './handlers/SessionHandler';
+import { ProfileHandler } from './handlers/ProfileHandler';
+import { BaseInstallHandler } from './handlers/BaseInstallHandler';
+import { IniHandler } from './handlers/IniHandler';
+
+// Context object to pass shared dependencies to handlers
+const handlerContext = {
+  sessionLines,
+  loadSessionLinesFromDisk,
+  saveSessionLinesToDisk,
+  broadcast,
+  rconManager,
+  sendAdminSocketCommand,
+  getProfiles,
+  saveProfiles,
+  setServerManuallyStopped,
+  processManager,
+  config,
+  fs,
+  configPath,
+  auditLog,
+  spawn: require('child_process').spawn,
+  SESSION_LINES_MAX,
+  checkBaseInstallUpdates
+};
+
+// Instantiate handler classes
+const sessionHandler = new SessionHandler(handlerContext);
+const profileHandler = new ProfileHandler(handlerContext);
+const baseInstallHandler = new BaseInstallHandler(handlerContext);
+const iniHandler = new IniHandler(handlerContext);
+
+// Merge all handler maps into a master handler map
+const masterHandlers: { [msgType: string]: (ws: any, msg: any) => Promise<void> } = {
+  ...sessionHandler.handlers,
+  ...profileHandler.handlers,
+  ...baseInstallHandler.handlers,
+  ...iniHandler.handlers,
+};
+
 wss.on('connection', (ws) => {
-  (async () => {
-    ws.on('message', async (data) => {
-      try {
-        const msg = JSON.parse(data.toString());
-        if (msg.type === 'clearSessionLines' && msg.key) {
-          sessionLines[msg.key] = [];
-          saveSessionLinesToDisk(msg.key, []);
-          // Broadcast empty log to all clients
-          broadcast('sessionLine', { key: msg.key, line: null });
-          // Also broadcast the full (empty) log for the key
-          broadcast('sessionLines', { key: msg.key });
-          return;
-        }
-        if (msg.type === 'command' && msg.key && typeof msg.command === 'string') {
-          // Store the command line with guid/type if provided
-          const commandLine: any = {
-            text: '> ' + msg.command,
-            timestamp: Date.now(),
-            type: 'command',
-          };
-          if (msg.guid) commandLine.guid = msg.guid;
-          if (!sessionLines[msg.key]) sessionLines[msg.key] = [];
-          sessionLines[msg.key].push(commandLine);
-          if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
-            sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
-          }
-          saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
-          broadcast('sessionLine', { key: msg.key, line: commandLine });
+  ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
+  // On connect, reload all session lines from disk for all known keys
+  const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':'));
+  for (const key of allKeys) {
+    if (!sessionLines[key]) sessionLines[key] = loadSessionLinesFromDisk(key);
+  }
+  ws.send(JSON.stringify({ type: 'sessionLines', data: sessionLines }));
+  ws.send(JSON.stringify({ type: 'status', data: rconManager.getStatus() }));
+  const statusListener = (key: string, state: any) => {
+    ws.send(JSON.stringify({ type: 'status', data: [{ key, ...state }] }));
+  };
+  rconManager.on('status', statusListener);
+  ws.on('close', () => {
+    rconManager.off('status', statusListener);
+  });
 
-          // Use real RCON connection
-          const output = await rconManager.sendCommand(msg.key, msg.command);
-          // Send output with guid/type if guid was provided
-          if (typeof output === 'string' && output.trim()) {
-            const outputLine: any = {
-              text: output,
-              timestamp: Date.now(),
-              type: 'output',
-            };
-            if (msg.guid) outputLine.guid = msg.guid;
-            sessionLines[msg.key].push(outputLine);
-            if (sessionLines[msg.key].length > SESSION_LINES_MAX) {
-              sessionLines[msg.key] = sessionLines[msg.key].slice(-SESSION_LINES_MAX);
-            }
-            saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
-            broadcast('sessionLine', { key: msg.key, line: outputLine });
-          }
-          // (No need to send output event for legacy clients)
-        } else if (msg.type === 'adminTask' && typeof msg.script === 'string') {
-          // Execute admin task via socket server
-          try {
-            const result = await sendAdminSocketCommand(msg.script);
-            ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, result }));
-          } catch (err) {
-            ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, error: String(err) }));
-          }
-        } else if (msg.type === 'shutdownserver' && msg.keys) {
-          // Handle server shutdown
-          const keys = msg.keys;
-          const profiles = getProfiles();
-          const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
-          if (affectedProfiles.length > 0) {
-            affectedProfiles.forEach((profile : any) => {
-              profile.manuallyStopped = true;
-            });
-            saveProfiles(profiles);
-            affectedProfiles.forEach((profile : any) => {
-              setServerManuallyStopped(`${profile.host}:${profile.port}`, true);
-              // Stop the process
-              processManager.stopProcess(`${profile.host}:${profile.port}`);
-            });
-            ws.send(JSON.stringify({ type: 'shutdownserverHandled', keys }));
-          } else {
-            ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
-          }
-        } else if (msg.type === 'startserver' && msg.keys) {
-          // Handle server force start
-          const keys = msg.keys;
-          const profiles = getProfiles();
-          const affectedProfiles = profiles.filter((p: any) => keys.includes(`${p.host}:${p.port}`));
-          if (affectedProfiles.length > 0) {
-            affectedProfiles.forEach((profile : any) => {
-              profile.manuallyStopped = false;
-            });
-            saveProfiles(profiles);
-            affectedProfiles.forEach((profile : any) => {
-              setServerManuallyStopped(`${profile.host}:${profile.port}`, false);
-              // Start the process
-              processManager.start(profile);
-            });
-            ws.send(JSON.stringify({ type: 'startserverHandled', keys }));
-          } else {
-            ws.send(JSON.stringify({ type: 'error', message: 'Server not found' }));
-          }
-        } else if(msg.type === 'updatebaseinstall' && typeof msg.path === 'string') {
-          // Handle base install update (async isRunning)
-          const profiles = getProfiles();
-          const affectedProfiles = profiles.filter((p: any) => p.baseInstallPath === msg.path);
-          if (affectedProfiles.length > 0) {
-            // Check if any affected profile is running (async)
-            const runningChecks = await Promise.all(
-              affectedProfiles.map((profile: any) => processManager.isRunning(`${profile.host}:${profile.port}`, profile))
-            );
-            if (!runningChecks.some(running => running)) {
-              affectedProfiles.forEach((profile: any) => {
-                spawn('steamcmd', [
-                  '+login', 'anonymous',
-                  '+force_install_dir', profile.baseInstallPath,
-                  '+app_update', 2430930,
-                  '+quit'
-                ]);
-              });
-              ws.send(JSON.stringify({ type: 'updatebaseinstallHandled', path: msg.path }));
-            } else {
-              ws.send(JSON.stringify({ type: 'error', message: 'Cannot update base install while servers are running' }));
-            }
-          } else {
-            ws.send(JSON.stringify({ type: 'error', message: 'Base install not found' }));
-          }
-        }
-      } catch {}
-    });
-
-    ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
-    // Send all session logs (all keys)
-    // On connect, reload all session lines from disk for all known keys
-    const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':'));
-    for (const key of allKeys) {
-      if (!sessionLines[key]) sessionLines[key] = loadSessionLinesFromDisk(key);
+  ws.on('message', async (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      const handler = masterHandlers[msg.type];
+      if (handler) {
+        await handler(ws, msg);
+      } else {
+        // Optionally, send error for unknown message type
+        // ws.send(JSON.stringify({ type: 'error', message: `Unknown message type: ${msg.type}` }));
+      }
+    } catch (err) {
+      // Optionally, send error for parse/handler errors
+      // ws.send(JSON.stringify({ type: 'error', message: 'Failed to process message' }));
     }
-    ws.send(JSON.stringify({ type: 'sessionLines', data: sessionLines }));
-    // Send current status
-    ws.send(JSON.stringify({ type: 'status', data: rconManager.getStatus() }));
-    // Listen for status changes
-    const statusListener = (key: string, state: any) => {
-      ws.send(JSON.stringify({ type: 'status', data: [{ key, ...state }] }));
-    };
-    rconManager.on('status', statusListener);
-
-    ws.on('close', () => {
-      rconManager.off('status', statusListener);
-    });
-  })();
+  });
 });
 
 // API: Get server profiles

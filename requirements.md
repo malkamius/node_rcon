@@ -1,3 +1,20 @@
+# Requirements
+
+- The application must support management of Ark server instances, including installation, configuration, and monitoring.
+- All server instance install actions must be accessible from the server management modal in the frontend.
+- Instance installs must allow specifying query port, game port, map name, session name, admin password, and optionally a server password.
+- The backend must support running the PowerShell script for instance installs with admin permissions.
+- All backend actions related to instance installs must be performed via WebSocket using the latest connection (via wsRef.current in the frontend).
+- The backend must use adminSocketClient to execute scripts requiring admin permissions.
+- REST endpoint `/api/install-instance` has been removed; all instance install actions are now handled via WebSocket and adminSocketClient.
+
+## Additional notes
+- Ensure all documentation and client code reference the WebSocket-based workflow for instance installs.
+# WebSocket Message Handler Refactor (2025-07-06)
+- WebSocket message handling must be organized by domain in handler classes under `src/backend/handlers/`.
+- Each handler class must expose a `handlers` map of message type to handler function.
+- `server.ts` must instantiate all handler classes and merge their handler maps for dispatch.
+- Message type to handler mapping must be documented in `handlers/README.md`.
 # Node.js RCON Manager Project Requirements
 
 ## 2025-06-17: New/Enhanced Features
