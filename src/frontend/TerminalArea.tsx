@@ -77,7 +77,7 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
     // Use the new consumeUnwrittenLines API for efficient updates
     let linesToWrite: TerminalLine[] = [];
     let fullRewrite = false;
-    if (session && newTerminal.current) {
+    if (session && (newTerminal.current || isNewSession)) {
       session.needsFullRewrite = true;
       newTerminal.current = false;
     }

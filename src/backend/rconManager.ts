@@ -101,7 +101,7 @@ export class RconManager extends EventEmitter {
       profile.game &&
       (profile.game === 'ark_se' || profile.game === 'ark_sa')
     ) {
-      const interval = Math.max(2, profile.features.currentPlayers.updateInterval || 10);
+      const interval = Math.max(2, profile.features.currentPlayers.updateInterval || 1);
       const pollPlayers = async () => {
         const conn = this.connections.get(key);
         if (conn && conn.status === 'connected' && conn.rcon) {

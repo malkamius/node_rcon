@@ -57,6 +57,7 @@ type ActivityTab = 'rcon' | 'config' | 'baseinstalls';
 
 export const ServerManagerPage: React.FC = () => {
   const [serverProfiles, setServerProfiles] = useState<ServerProfile[]>([]);
+  const [serverPlayers, setServerPlayers] = useState<Record<string, any>>({});
   // statusMap: key -> { running, startTime, manuallyStopped, autoStart, baseInstallId }
   const [statusMap, setStatusMap] = useState<Record<string, any>>({});
   // rconStatusMap: key -> { status: 'connected' | 'connecting' | 'disconnected', since: number }
@@ -191,6 +192,14 @@ export const ServerManagerPage: React.FC = () => {
         } else if (msg.type === 'chatMessage' && msg.key && typeof msg.output === 'string') {
           terminalManager.current.appendLine(msg.key, msg.output.replace(/\r?\n/g, '\r\n'), undefined, false);
           if (selectedKeyRef.current === msg.key) setSessionVersion((v) => v + 1);
+        } else if(msg.type == 'currentPlayers' && msg.key) {
+          setServerPlayers(prev => ({
+            ...prev,
+            [msg.key]: {
+              players: Array.isArray(msg.currentPlayers) ? msg.currentPlayers : [],
+              lastUpdate: Date.now(),
+            },
+          }));
         }
       } catch {}
     });
@@ -432,6 +441,7 @@ export const ServerManagerPage: React.FC = () => {
                 if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
                 wsRef.current.send(JSON.stringify({ type: 'clearSessionLines', key }));
               }}
+              currentPlayers={serverPlayers[selectedKey] || { players: [], lastUpdate: null }} 
               disabled={!!loadingSessions[selectedKey]}
             />
           ) : activity === 'config' ? (

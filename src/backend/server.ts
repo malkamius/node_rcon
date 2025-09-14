@@ -511,31 +511,46 @@ function broadcast(type: string, payload: any) {
     // output is expected to be a string with player names, one per line or comma separated
     // Try to parse player names
 
-    let players: string[] = [];
+    let playerRawList: string[] = [];
     if (output === null || output === undefined || output.trim() === 'No Players Connected' || output.trim() === 'No players online') {
-      players = [];
+      playerRawList = [];
     } else if (output.includes('\n')) {
-      players = output.split(/\r?\n/).map(p => p.trim()).filter(Boolean);
+      playerRawList = output.split(/\r?\n/).map(p => p.trim()).filter(Boolean);
     } else if (output.includes(',')) {
-      players = output.split(',').map(p => p.trim()).filter(Boolean);
+      playerRawList = output.split(',').map(p => p.trim()).filter(Boolean);
     } else if (output.trim()) {
-      players = [output.trim()];
+      playerRawList = [output.trim()];
     }
     // Remove player index (e.g., '0. ') from each player string
-    players = players.map(p => p.replace(/^\d+\.\s*/, ''));
+    playerRawList = playerRawList.map(p => p.replace(/^\d+\.\s*/, ''));
 
+    // Parse player name and guid if present (format: "Name, GUID")
+    type PlayerObj = { name: string, guid?: string, raw: string };
+    const playerObjs: PlayerObj[] = playerRawList.map(raw => {
+      // Try to split by comma, but only if there are two parts and the second looks like a guid
+      const parts = raw.split(',').map(s => s.trim());
+      if (parts.length === 2 && /^[0-9a-f]{16,}$/.test(parts[1].replace(/-/g, ''))) {
+        return { name: parts[0], guid: parts[1], raw };
+      } else {
+        return { name: raw, raw };
+      }
+    });
+
+    // For currentPlayers, only use the name
+    const playerNames = playerObjs.map(p => p.name);
     if (!connectedPlayers[key]) connectedPlayers[key] = new Set();
     const prevPlayers = new Set(connectedPlayers[key]);
-    const currentPlayers = new Set(players);
+    const currentPlayers = new Set(playerNames);
 
     // Detect joins
-    for (const player of currentPlayers) {
-      if (!prevPlayers.has(player)) {
+    for (const p of playerObjs) {
+      if (!prevPlayers.has(p.name)) {
         // Player joined
-        const msg = `PLAYER CONNECTED: ${player}`;
-        const line: { text: string; timestamp: number; type: 'output' } = { text: msg, timestamp: Date.now(), type: 'output' };
+        // Show full string (name and guid if present) in the message
+        const msg = `PLAYER CONNECTED: ${p.raw}`;
+        const line: { text: string; timestamp: number; type: 'output'; guid?: string } = { text: msg, timestamp: Date.now(), type: 'output' };
+        if (p.guid) line.guid = p.guid;
         if (!sessionLines[key]) sessionLines[key] = [];
-      
         sessionLines[key].push(line);
         if (sessionLines[key].length > SESSION_LINES_MAX) {
           sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
@@ -544,28 +559,30 @@ function broadcast(type: string, payload: any) {
       }
     }
     // Detect leaves
-    for (const player of prevPlayers) {
-      if (!currentPlayers.has(player)) {
-        // Player left
-        const msg = `PLAYER DISCONNECTED: ${player}`;
-        const line: { text: string; timestamp: number; type: 'output' } = { text: msg, timestamp: Date.now(), type: 'output' };
+    for (const prevName of prevPlayers) {
+      if (!currentPlayers.has(prevName)) {
+        // Try to find the raw string for the leaving player (if present in previous set)
+        // If not found, just use the name
+        const prevObj = playerObjs.find(p => p.name === prevName);
+        const raw = prevObj ? prevObj.raw : prevName;
+        const msg = `PLAYER DISCONNECTED: ${raw}`;
+        const line: { text: string; timestamp: number; type: 'output'; guid?: string } = { text: msg, timestamp: Date.now(), type: 'output' };
+        if (prevObj && prevObj.guid) line.guid = prevObj.guid;
         if (!sessionLines[key]) sessionLines[key] = [];
-      
         sessionLines[key].push(line);
         if (sessionLines[key].length > SESSION_LINES_MAX) {
           sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
         }
         saveSessionLinesToDisk(key, sessionLines[key]);
-          broadcast('sessionLine', { key, line });
-        }
+        broadcast('sessionLine', { key, line });
+      }
     }
 
     // Update tracked players
     connectedPlayers[key] = currentPlayers;
 
-    // Still broadcast the currentPlayers list as before
-    const line: { text: string; timestamp: number; type: 'output' } = { text: output, timestamp: Date.now(), type: 'output' };
-    broadcast('currentPlayers', { key, line });
+    // Still broadcast the currentPlayers list as before (names only)
+    broadcast('currentPlayers', { key, currentPlayers: Array.from(currentPlayers) });
   };
   rconManager.on('currentPlayers', playersListener);
 

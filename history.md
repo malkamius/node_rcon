@@ -1,3 +1,15 @@
+## 2025-09-14 (cont)
+
+- Join/leave session line messages now include the full player string (name and guid if present) in the chat window, while the currentPlayers list still only shows the name.
+## 2025-09-14
+
+- Updated player name filtering in `playersListener` (server.ts):
+  - Now parses player strings to extract only the player name for the `currentPlayers` list.
+  - If a GUID is present (e.g., 'Name, GUID'), it is included in session lines for join/leave events, but not in the `currentPlayers` broadcast.
+  - Ensures only the player name (not index, not GUID) is shown in the currentPlayers list, but GUID is tracked in session lines for audit/logging.
+
+### Next steps
+- Review frontend handling of currentPlayers and sessionLine events to ensure correct display and usage of player names and GUIDs if needed.
 # 2025-07-06
 - Refactored `installInstance` in `BaseInstallHandler.ts` to use `sendAdminSocketCommand` for running the PowerShell script with admin privileges, instead of spawning the process directly. This ensures all instance installs are executed with the required permissions via the admin socket.
 # 2025-07-06

@@ -36,12 +36,13 @@ interface RconClientAppProps {
   sessionVersion?: number;
   onSendCommand?: (key: string, command: string, guid: string) => void;
   onClearLog?: (key: string) => void;
-  currentPlayers?: Record<string, { players: string[]; lastUpdate: number | null }>;
+  currentPlayers?: { players: string[]; lastUpdate: number | null };
   disabled?: boolean; // If true, disables input and send button
 }
 
 // If terminalManager/sessionVersion are not provided, create a local one (for backward compatibility/testing)
 const defaultTerminalManager = new RconTerminalManager(100, { current: null } as React.MutableRefObject<WebSocket | null>);
+
 
 export const RconClientWindow: React.FC<RconClientAppProps> = ({
   serverProfiles,
@@ -54,7 +55,7 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   sessionVersion = 0,
   onSendCommand,
   onClearLog,
-  currentPlayers = {},
+  currentPlayers,
   disabled = false,
 }) => {
   const [command, setCommand] = useState('');
@@ -69,6 +70,7 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   const startWidth = useRef<number>(240);
 
   const selectedProfile = selectedKey ? serverProfiles.find(p => `${p.host}:${p.port}` === selectedKey) : null;
+
 
   // Set showTimestamps from profile (default true)
   useEffect(() => {
@@ -97,11 +99,14 @@ export const RconClientWindow: React.FC<RconClientAppProps> = ({
   let showPlayers = false;
   let playersList: string[] = [];
   let playersLastUpdate: number | null = null;
-  if (selectedProfile && selectedProfile.features?.currentPlayers?.enabled) {
+  if (selectedProfile && selectedProfile.features?.currentPlayers?.enabled && currentPlayers) {
     showPlayers = true;
-    if (selectedKey && currentPlayers[selectedKey]) {
-      playersList = currentPlayers[selectedKey].players;
-      playersLastUpdate = currentPlayers[selectedKey].lastUpdate;
+    if (selectedKey && currentPlayers) {
+      playersList = currentPlayers.players;
+      playersLastUpdate = currentPlayers.lastUpdate;
+    } else {
+      playersList = [];
+      playersLastUpdate = null;
     }
   }
 
