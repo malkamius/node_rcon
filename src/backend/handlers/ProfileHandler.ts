@@ -74,7 +74,7 @@ export class ProfileHandler {
         });
         saveProfiles(profiles);
         affectedProfiles.forEach((profile : any) => {
-          setServerManuallyStopped(`${profile.host}:${profile.port}`, true);
+          //setServerManuallyStopped(`${profile.host}:${profile.port}`, true);
           processManager.stopProcess(`${profile.host}:${profile.port}`);
         });
         ws.send(JSON.stringify({ type: 'shutdownserverHandled', keys }));
@@ -93,7 +93,7 @@ export class ProfileHandler {
         });
         saveProfiles(profiles);
         affectedProfiles.forEach((profile : any) => {
-          setServerManuallyStopped(`${profile.host}:${profile.port}`, false);
+          //setServerManuallyStopped(`${profile.host}:${profile.port}`, false);
           processManager.start(profile);
         });
         ws.send(JSON.stringify({ type: 'startserverHandled', keys }));

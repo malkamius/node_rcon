@@ -640,6 +640,13 @@ import { ProfileHandler } from './handlers/ProfileHandler';
 import { BaseInstallHandler } from './handlers/BaseInstallHandler';
 import { IniHandler } from './handlers/IniHandler';
 
+
+// Wire up profiles broadcast for websocket notifications
+import { setProfileChangedEvent } from './profiles';
+setProfileChangedEvent(() => {
+  rconManager.loadProfiles();
+}); 
+
 // Context object to pass shared dependencies to handlers
 const handlerContext = {
   sessionLines,
