@@ -1,3 +1,15 @@
+## 2025-09-19
+
+- Backend: Renamed `updatebaseinstall` handler to `updateSteamGame` in `BaseInstallHandler.ts`.
+- Backend: Added new `installSteam` handler for initial Steam game install using SteamCMD.
+- Backend: Both `updateSteam` and `installSteamGame` now stream progress updates to the frontend via WebSocket (`steamUpdateProgress` and `steamInstallProgress` messages).
+- Frontend: Added `handleUpdate` and `handleInstall` logic to `BaseInstallManager.tsx`, wiring them to the update/install buttons.
+- Frontend: Displays a column with real-time progress output for update/install actions.
+- All changes documented and requirements/plan files updated as needed.
+
+### Next steps
+- Test update/install flows in the UI and backend for error handling and edge cases.
+- Update documentation for new progress streaming and handler names.
 ## 2025-09-14 (cont)
 
 - Join/leave session line messages now include the full player string (name and guid if present) in the chat window, while the currentPlayers list still only shows the name.

@@ -1,3 +1,5 @@
+import { existsSync } from "fs";
+
 export class BaseInstallHandler {
   async installInstance(ws: WebSocket, msg: any): Promise<void> {
     const { sendAdminSocketCommand } = this.context;
@@ -28,7 +30,12 @@ export class BaseInstallHandler {
       ws.send(JSON.stringify({ type: 'installInstance', error: String(err), requestId: msg.requestId }));
     }
   }
+  private broadcast: ((type: string, payload: any) => void) | null = null;
   constructor(private context: any) {}
+
+  setBroadcastHandler(broadcastFn: (type: string, payload: any) => void) {
+    this.broadcast = broadcastFn;
+  }
 
   handlers = {
     getBaseInstalls: async (ws: WebSocket, msg: any) => {
@@ -97,29 +104,92 @@ export class BaseInstallHandler {
       ws.send(JSON.stringify({ ok: true, requestId: msg.requestId }));
       broadcast('baseInstallsUpdated', { baseInstalls: config.baseInstalls });
     },
-    updatebaseinstall: async (ws: WebSocket, msg: any) => {
-      const { getProfiles, processManager, spawn } = this.context;
+    updateSteamGame: async (ws: WebSocket, msg: any) => {
+      // Update existing base install using steamcmd +app_update with PTY for real-time output
+      const { getProfiles, processManager } = this.context;
       const profiles = getProfiles();
-      const affectedProfiles = profiles.filter((p: any) => p.baseInstallPath === msg.path);
+      const baseInstallPath = msg.path;
+      const affectedProfiles = profiles.filter((p: any) => p.baseInstallPath === baseInstallPath);
+      const fs = require('fs');
+      const path = require('path');
+      const pty = require('@homebridge/node-pty-prebuilt-multiarch');
       if (affectedProfiles.length > 0) {
         const runningChecks = await Promise.all(
           affectedProfiles.map((profile: any) => processManager.isRunning(`${profile.host}:${profile.port}`, profile))
         );
         if (!runningChecks.some(running => running)) {
-          affectedProfiles.forEach((profile: any) => {
-            spawn('steamcmd', [
-              '+login', 'anonymous',
-              '+force_install_dir', profile.baseInstallPath,
-              '+app_update', 2430930,
-              '+quit'
-            ]);
-          });
-          ws.send(JSON.stringify({ type: 'updatebaseinstallHandled', path: msg.path }));
+          if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'starting', baseInstallPath });
+          const logFile = path.join(baseInstallPath, `steamcmd_update_${Date.now()}.log`);
+          for (const profile of affectedProfiles) {
+            try {
+              const steamCmdExe = path.join(this.context.config.steamCmdPath || "", 'steamcmd.exe');
+              const args = ['+force_install_dir', baseInstallPath, '+login', 'anonymous', '+app_update', '2430930', 'validate', '+quit'];
+              const ptyProcess = pty.spawn(steamCmdExe, args, {
+                name: 'xterm-color',
+                cols: 80,
+                rows: 30,
+                cwd: baseInstallPath,
+                env: process.env,
+                useConpty: false
+              });
+              ptyProcess.on('data', (data: string) => {
+                if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'progress', baseInstallPath, output: data });
+                process.stdout.write(data);
+                //fs.appendFileSync(logFile, data);
+              });
+              ptyProcess.on('exit', (code: number, signal: number) => {
+                if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'done', baseInstallPath, code, signal });
+                //fs.appendFileSync(logFile, `\nProcess exited with code ${code} and signal ${signal}\n`);
+              });
+            } catch (err) {
+              if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'error', baseInstallPath, output: String(err) });
+              return;
+            }
+          }
         } else {
-          ws.send(JSON.stringify({ type: 'error', message: 'Cannot update base install while servers are running' }));
+          if (this.broadcast) this.broadcast('error', { message: 'Cannot update base install while servers are running' });
         }
       } else {
-        ws.send(JSON.stringify({ type: 'error', message: 'Base install not found' }));
+        if (this.broadcast) this.broadcast('error', { message: 'Base install not found' });
+      }
+    },
+
+    installSteamGame: async (ws: WebSocket, msg: any) => {
+      // Install base install using steamcmd +app_install with PTY for real-time output
+      const { baseInstallPath } = msg;
+      if (!baseInstallPath) {
+        if (this.broadcast) this.broadcast('installSteam', { error: 'Missing baseInstallPath' });
+        return;
+      }
+      if (this.broadcast) this.broadcast('steamInstallProgress', { status: 'starting', baseInstallPath });
+      const fs = require('fs');
+      const path = require('path');
+      const pty = require('@homebridge/node-pty-prebuilt-multiarch');
+
+      try {
+        const steamCmdExe = path.join(this.context.config.steamCmdPath || "", 'steamcmd.exe');
+        const args = ['+force_install_dir', baseInstallPath, '+login', 'anonymous', '+app_update', '2430930', 'validate', '+quit'];
+        //const logFile = path.join(baseInstallPath, `steamcmd_install_${Date.now()}.log`);
+        const ptyProcess = pty.spawn(steamCmdExe, args, {
+          name: 'xterm-color',
+          cols: 80,
+          rows: 30,
+          cwd: baseInstallPath,
+          env: process.env,
+          useConpty: false
+        });
+        ptyProcess.on('data', (data: string) => {
+          if (this.broadcast) this.broadcast('steamInstallProgress', { status: 'progress', baseInstallPath, output: data });
+          process.stdout.write(data);
+          //fs.appendFileSync(logFile, data);
+        });
+        ptyProcess.on('exit', (code: number, signal: number) => {
+          if (this.broadcast) this.broadcast('steamInstallProgress', { status: 'done', baseInstallPath, code, signal });
+          //fs.appendFileSync(logFile, `\nProcess exited with code ${code} and signal ${signal}\n`);
+        });
+      } catch (err) {
+        if (this.broadcast) this.broadcast('steamInstallProgress', { status: 'error', baseInstallPath, output: String(err) });
+        return;
       }
     },
     getSteamCmdInstall: async (ws: WebSocket, msg: any) => {
