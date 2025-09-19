@@ -21,7 +21,7 @@ const defaultConfig = {
     host: '127.0.0.1',
     port: 3000
   },
-  servers: [],
+  profiles: [],
   steamcmdPath: '',
   baseInstallUpdateCheckInterval: 10000, // 10 seconds default
   baseInstalls: []
@@ -157,9 +157,12 @@ async function checkBaseInstallUpdates() {
         const acfRaw = require('fs').readFileSync(acfPath, 'utf-8');
         const buildIdMatch = acfRaw.match(/"buildid"\s+"(\d+)"/);
         const buildId = buildIdMatch ? buildIdMatch[1] : null;
+        const newUpdateAvailable = latestBuildId && buildId && buildId !== latestBuildId
+        let isDirty = buildId != base.version || base.updateAvailable !== newUpdateAvailable || base.latestBuildId !== latestBuildId
         base.version = buildId;
-        base.updateAvailable = latestBuildId && buildId && buildId !== latestBuildId;
+        base.updateAvailable = newUpdateAvailable;
         base.latestBuildId = latestBuildId;
+        base.isDirty = isDirty;
       } else {
         base.version = null;
         base.updateAvailable = false;
@@ -171,7 +174,10 @@ async function checkBaseInstallUpdates() {
       base.latestBuildId = latestBuildId;
     }
   }
-  require('fs').writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  if (config.baseInstalls.filter((b: { isDirty: boolean; }) => !!b.isDirty).length > 0) {
+    config.baseInstalls.forEach((b: { isDirty: boolean; }) => { b.isDirty = false; });
+    require('fs').writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  }
 }
 
 

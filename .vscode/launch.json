@@ -5,7 +5,7 @@
             "type": "node",
             "request": "launch",
             "name": "Launch Backend Server (TS-Node)",
-            "runtimeArgs": ["--require", "ts-node/register", "--inspect-brk"], // Add this line
+            "runtimeArgs": ["--require", "ts-node/register", "--inspect"], // Add this line
             "args": ["${workspaceFolder}/src/backend/server.ts"], // Point directly to the TS file
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",

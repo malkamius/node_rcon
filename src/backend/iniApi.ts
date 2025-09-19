@@ -47,7 +47,7 @@ router.get('/api/server-ini/:profileIdx/:file', (req, res) => {
   let profiles;
   try {
     const configRaw = fs.readFileSync(path.join(__dirname, '../../config.json'), 'utf-8');
-    profiles = JSON.parse(configRaw).servers;
+    profiles = JSON.parse(configRaw).profiles;
   } catch (e) {
     return res.status(500).json({ error: 'Failed to read config.json' });
   }
@@ -70,7 +70,7 @@ router.post('/api/server-ini/:profileIdx/:file', express.json(), (req, res) => {
     let profiles;
     try {
       const configRaw = fs.readFileSync(path.join(__dirname, '../../config.json'), 'utf-8');
-      profiles = JSON.parse(configRaw).servers;
+      profiles = JSON.parse(configRaw).profiles;
     } catch (e) {
       return res.status(500).json({ error: 'Failed to read config.json' });
     }

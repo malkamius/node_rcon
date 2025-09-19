@@ -16,7 +16,7 @@ export class ProfileHandler {
     saveProfiles: async (ws: WebSocket, msg: any) => {
       const { saveProfiles } = this.context;
       try {
-        this.context.config.servers = msg.profiles;
+        this.context.config.profiles = msg.profiles;
         saveProfiles(msg.profiles);
         ws.send(JSON.stringify({ type: 'saveProfiles', ok: true, requestId: msg.requestId }));
       } catch (e) {
