@@ -21,7 +21,7 @@ const defaultConfig = {
     host: '127.0.0.1',
     port: 3000
   },
-  servers: [],
+  profiles: [],
   steamcmdPath: '',
   baseInstallUpdateCheckInterval: 10000, // 10 seconds default
   baseInstalls: []
@@ -48,7 +48,7 @@ function auditLog(event: string, details: any) {
 }
 
 
-export function getBaseInstall(InstancePath: string): Promise<string> {
+export function getBaseInstall(InstancePath: string): Promise<string | Error> {
   return new Promise((resolve, reject) => {
     const PathTocheck = InstancePath + "\\steamapps";
     // Use single quotes for -Command and escape inner quotes for -Path
@@ -61,12 +61,16 @@ export function getBaseInstall(InstancePath: string): Promise<string> {
         if (err) {
           console.error('Error executing PowerShell command:', err);
           if (stderr) console.error('PowerShell Stderr:', stderr);
-          return reject(err);
+          return err;
+        }
+        if((stderr && stderr.trim().length > 0) && (!stdout || !stdout.trim())) {
+          console.error('PowerShell Stderr:', stderr);
+          return new Error(stderr.trim());
         }
         // Sometimes PowerShell outputs to stderr even on success
-        const output = (stdout && stdout.trim()) || (stderr && stderr.trim());
+        const output = (stdout && stdout.trim());
         if (!output) {
-          return reject(new Error('No output from PowerShell script'));
+          return new Error('No output from PowerShell script');
         }
         resolve(path.dirname(output));
       }
@@ -80,6 +84,7 @@ async function getBaseInstallsFromProfiles() {
   for (const profile of profiles) {
     if (profile.game === 'ark_sa' && profile.directory) {
       await getBaseInstall(profile.directory).then(path => {
+        if(path instanceof Error) return;
         if(!config.baseInstalls.some((b: any) => b.path === path)) {
           config.baseInstalls.push({ id: path, path: path, version: null, lastUpdated: null, updateAvailable: false, latestBuildId: null });
           profile.baseInstallPath = path; // Store in profile for easy access
@@ -157,21 +162,30 @@ async function checkBaseInstallUpdates() {
         const acfRaw = require('fs').readFileSync(acfPath, 'utf-8');
         const buildIdMatch = acfRaw.match(/"buildid"\s+"(\d+)"/);
         const buildId = buildIdMatch ? buildIdMatch[1] : null;
+        const newUpdateAvailable = latestBuildId && buildId && buildId !== latestBuildId
+        let isDirty = buildId != base.version || base.updateAvailable !== newUpdateAvailable || base.latestBuildId !== latestBuildId
         base.version = buildId;
-        base.updateAvailable = latestBuildId && buildId && buildId !== latestBuildId;
+        base.updateAvailable = newUpdateAvailable;
         base.latestBuildId = latestBuildId;
+        base.isDirty = isDirty;
       } else {
         base.version = null;
         base.updateAvailable = false;
+        base.installAvailable = true;
         base.latestBuildId = latestBuildId;
+        base.isDirty = true;
       }
     } catch {
       base.version = null;
       base.updateAvailable = false;
       base.latestBuildId = latestBuildId;
+      base.isDirty = true;
     }
   }
-  require('fs').writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  if (config.baseInstalls.filter((b: { isDirty: boolean; }) => !!b.isDirty).length > 0) {
+    config.baseInstalls.forEach((b: { isDirty: boolean; }) => { b.isDirty = false; });
+    require('fs').writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  }
 }
 
 
@@ -634,6 +648,13 @@ import { ProfileHandler } from './handlers/ProfileHandler';
 import { BaseInstallHandler } from './handlers/BaseInstallHandler';
 import { IniHandler } from './handlers/IniHandler';
 
+
+// Wire up profiles broadcast for websocket notifications
+import { setProfileChangedEvent } from './profiles';
+setProfileChangedEvent(() => {
+  rconManager.loadProfiles();
+}); 
+
 // Context object to pass shared dependencies to handlers
 const handlerContext = {
   sessionLines,
@@ -659,6 +680,8 @@ const handlerContext = {
 const sessionHandler = new SessionHandler(handlerContext);
 const profileHandler = new ProfileHandler(handlerContext);
 const baseInstallHandler = new BaseInstallHandler(handlerContext);
+// Set broadcast handler so progress/status messages go to all clients
+baseInstallHandler.setBroadcastHandler((type, payload) => broadcast(type, payload));
 const iniHandler = new IniHandler(handlerContext);
 
 // Merge all handler maps into a master handler map

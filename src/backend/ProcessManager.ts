@@ -82,8 +82,9 @@ export class ArkSAProcessManager extends ProcessManager {
       this.emit('processStatus', `${profile.host}:${profile.port}`, { running: true, startTime: this.processes[`${profile.host}:${profile.port}`].startTime });
       return { running: true, startTime: this.processes[`${profile.host}:${profile.port}`].startTime };
     }
-    if (this.processes[`${profile.host}:${profile.port}`]) return { running: true, error: 'Server already running' };
     profile.manuallyStopped = false; // Clear manually stopped flag on start
+    if (this.processes[`${profile.host}:${profile.port}`]) return { running: true, error: 'Server already running' };
+    
     
     const child = require('child_process').spawn(exePath, profile.parsedCommandline, {
       cwd: profile.directory,

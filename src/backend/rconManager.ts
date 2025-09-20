@@ -42,6 +42,7 @@ interface ConnectionState {
   rcon?: Rcon;
 }
 
+
 export class RconManager extends EventEmitter {
   private connections: Map<string, ConnectionState> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -51,6 +52,9 @@ export class RconManager extends EventEmitter {
   // Per-profile mutexes
   private locks: Map<string, Promise<void>> = new Map();
   private lockResolvers: Map<string, () => void> = new Map();
+
+  // Store last loaded profiles for change detection
+  private lastProfiles: { [key: string]: { host: string; port: number; password: string } } = {};
 
   // Acquire a lock for a given key (profile)
   private async acquireLock(key: string): Promise<void> {
@@ -79,10 +83,60 @@ export class RconManager extends EventEmitter {
 
   loadProfiles() {
     const profiles: ServerProfile[] = getProfiles();
+    const newProfileMap = new Map<string, ServerProfile>();
+    const newProfilesByKey: { [key: string]: { host: string; port: number; password: string } } = {};
+    for (const p of profiles) {
+      const key = p.host + ':' + p.port;
+      newProfileMap.set(key, p);
+      newProfilesByKey[key] = { host: p.host, port: p.port, password: p.password };
+    }
+
+    // Find removed or changed servers
+    for (const oldKey of Array.from(this.connections.keys())) {
+      const oldState = this.connections.get(oldKey);
+      const newProfile = newProfileMap.get(oldKey);
+      let needsRemove = false;
+      if (!newProfile) {
+        // Server removed
+        needsRemove = true;
+      } else {
+        // Check for host/port/password changes
+        const last = this.lastProfiles[oldKey];
+        if (!last || last.host !== newProfile.host || last.port !== newProfile.port || last.password !== newProfile.password) {
+          needsRemove = true;
+        }
+      }
+      if (needsRemove) {
+        if (this.pollingIntervals.has(oldKey)) {
+          clearInterval(this.pollingIntervals.get(oldKey));
+          this.pollingIntervals.delete(oldKey);
+        }
+        if (this.reconnectTimers.has(oldKey)) {
+          clearInterval(this.reconnectTimers.get(oldKey));
+          this.reconnectTimers.delete(oldKey);
+        }
+        this.connections.delete(oldKey);
+        this.disconnectedSince.delete(oldKey);
+        this.locks.delete(oldKey);
+        this.lockResolvers.delete(oldKey);
+        if (oldState && oldState.rcon) {
+          try {
+            oldState.rcon.end();
+          } catch (e) {
+            console.error('Error closing RCON connection for', oldKey, e);
+          }
+        }
+      }
+    }
+
+    // Now ensure connections and polling for all new/changed profiles
     for (const profile of profiles) {
       this.ensureConnection(profile);
       this.setupFeaturePolling(profile);
     }
+
+    // Store the new profiles for next comparison
+    this.lastProfiles = newProfilesByKey;
   }
 
   setupFeaturePolling(profile: ServerProfile) {
