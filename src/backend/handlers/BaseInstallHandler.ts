@@ -230,7 +230,7 @@ export class BaseInstallHandler {
         return;
       }
       try {
-        const output = await sendAdminSocketCommand('Install-SteamCmd.ps1', ['-BaseServerInstallDirectory', baseInstallPath]);
+        const output = await sendAdminSocketCommand('Install-SteamCmd.ps1', ['-InstallDirectory', baseInstallPath]);
         ws.send(JSON.stringify({ type: 'installSteamCmd', ok: true, output, requestId: msg.requestId }));
       } catch (err: any) {
         ws.send(JSON.stringify({ type: 'installSteamCmd', error: String(err), requestId: msg.requestId }));

@@ -48,7 +48,6 @@ git clone https://github.com/malkamius/node_rcon.git
 cd node_rcon
 ```
 
-
 ### 4. Install Dependencies
 
 
@@ -56,6 +55,12 @@ cd node_rcon
 npm install
 ```
 
+### 4.5
+Start a powershell as administrator and execute
+```sh
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned
+```
+if you are unable to run npm
 
 ### 5. Build the Project
 
