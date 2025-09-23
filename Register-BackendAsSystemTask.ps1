@@ -7,6 +7,7 @@ $BackendDir = $PSScriptRoot
 
 $taskName = "ArkRconBackend"
 $action = New-ScheduledTaskAction -Execute "npm.cmd" -Argument "start" -WorkingDirectory $BackendDir
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit '00:00:00'
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Limited
 
@@ -14,7 +15,7 @@ $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 Unregister-ScheduledTask -TaskPath "ArkServerManager" -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
 # Register the new task
-Register-ScheduledTask -TaskPath "ArkServerManager" -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal
+Register-ScheduledTask -TaskPath "ArkServerManager" -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force
 
 # Start the task immediately
 Start-ScheduledTask -TaskName $taskName -TaskPath "ArkServerManager"

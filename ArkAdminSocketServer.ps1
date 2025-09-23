@@ -122,7 +122,7 @@ while ($true) {
             # Pass arguments as an array so each is a separate parameter
             $output = powershell -NoProfile -ExecutionPolicy Bypass -File $cmd @args 2>&1
             Write-Host "[ArkAdminSocket] Command output: $output"
-            $writer.WriteLine($output)
+            $writer.WriteLine("[ArkAdminSocket] Command output: $output")
         } else {
             Write-Host "[ArkAdminSocket] Command is NOT whitelisted!"
             $writer.WriteLine("ERROR: Command not allowed.")
