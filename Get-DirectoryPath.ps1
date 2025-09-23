@@ -46,7 +46,8 @@ function Get-JunctionDestination {
                 }
             }
         } else {
-            Write-Warning "'$Path' is not a reparse point (junction)."
+            # Return the resolved path of the item if it is not a reparse point (junction)
+            return $item.FullName
         }
     } catch {
         Write-Error "An error occurred: $($_.Exception.Message)"

@@ -4,7 +4,7 @@
 
 $Port = 12345
 $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ConfigPath = Join-Path $RootDir '..\..\config.json'
+$ConfigPath = Join-Path $RootDir 'config.json'
 
 
 # Load approved script hashes from config.json, or initialize if missing/empty
@@ -119,8 +119,9 @@ while ($true) {
         }
         if (Is-Whitelisted $cmd) {
             Write-Host "[ArkAdminSocket] Command is whitelisted. Executing..."
-            $argString = ($args | ForEach-Object { '"' + ($_ -replace '"', '""') + '"' }) -join ' '
-            $output = powershell -NoProfile -ExecutionPolicy Bypass -File $cmd $argString 2>&1
+            # Pass arguments as an array so each is a separate parameter
+            $output = powershell -NoProfile -ExecutionPolicy Bypass -File $cmd @args 2>&1
+            Write-Host "[ArkAdminSocket] Command output: $output"
             $writer.WriteLine($output)
         } else {
             Write-Host "[ArkAdminSocket] Command is NOT whitelisted!"

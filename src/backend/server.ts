@@ -61,18 +61,18 @@ export function getBaseInstall(InstancePath: string): Promise<string | Error> {
         if (err) {
           console.error('Error executing PowerShell command:', err);
           if (stderr) console.error('PowerShell Stderr:', stderr);
-          return err;
+          return reject(err);
         }
         if((stderr && stderr.trim().length > 0) && (!stdout || !stdout.trim())) {
           console.error('PowerShell Stderr:', stderr);
-          return new Error(stderr.trim());
+          return reject(new Error(stderr.trim()));
         }
         // Sometimes PowerShell outputs to stderr even on success
         const output = (stdout && stdout.trim());
         if (!output) {
-          return new Error('No output from PowerShell script');
+          return reject(new Error('No output from PowerShell script'));
         }
-        resolve(path.dirname(output));
+        return resolve(path.dirname(output));
       }
     );
   });
@@ -84,11 +84,12 @@ async function getBaseInstallsFromProfiles() {
   for (const profile of profiles) {
     if (profile.game === 'ark_sa' && profile.directory) {
       await getBaseInstall(profile.directory).then(path => {
-        if(path instanceof Error) return;
         if(!config.baseInstalls.some((b: any) => b.path === path)) {
           config.baseInstalls.push({ id: path, path: path, version: null, lastUpdated: null, updateAvailable: false, latestBuildId: null });
           profile.baseInstallPath = path; // Store in profile for easy access
         }
+      }).catch(error => {
+        console.error(`Error getting base install for profile ${profile.id}:`, error);
       });
     }
   }
