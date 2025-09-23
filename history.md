@@ -1,3 +1,11 @@
+## 2025-09-23
+
+- Frontend: Updated `InstanceManager.tsx` to include all required parameter inputs for instance installation (queryPort, gamePort, mapName, sessionName, adminPassword, serverPassword).
+- Frontend: Removed unused `InstanceInstallModal.tsx` from the codebase.
+- All instance install actions now use the main InstanceManager form, no modal required.
+
+### Next steps
+- Test instance install flow in the UI and backend for error handling and edge cases.
 ## 2025-09-19
 
 - Backend: Renamed `updatebaseinstall` handler to `updateSteamGame` in `BaseInstallHandler.ts`.
