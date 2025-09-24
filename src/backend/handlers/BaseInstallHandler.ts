@@ -110,7 +110,7 @@ export class BaseInstallHandler {
       const { getProfiles, processManager } = this.context;
       const profiles = getProfiles();
       const baseInstallPath = msg.path;
-      const affectedProfiles = profiles.filter((p: any) => p.baseInstallPath === baseInstallPath);
+      const affectedProfiles = profiles.filter((p: any) => p.directory === baseInstallPath);
       const fs = require('fs');
       const path = require('path');
       const pty = require('@homebridge/node-pty-prebuilt-multiarch');

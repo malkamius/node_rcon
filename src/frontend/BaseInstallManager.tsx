@@ -304,8 +304,8 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
       {loading && <div>Loading...</div>}
       {error && <div style={{ color: '#f66' }}>{error}</div>}
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-        <button onClick={handleAdd} disabled={actionLoading || !steamCmdDetected}>Add Base Install</button>
-        <button onClick={handleRemove} disabled={!selectedId || actionLoading || !steamCmdDetected}>Remove Selected</button>
+        <button onClick={handleAdd} disabled={!steamCmdDetected}>Add Base Install</button>
+        <button onClick={handleRemove} disabled={!selectedId || !steamCmdDetected}>Remove Selected</button>
       </div>
       <div style={{ width: '100%', background: '#23272e', color: '#eee', borderRadius: 4, overflow: 'hidden' }}>
         <div style={{ display: 'flex', fontWeight: 600, borderBottom: '2px solid #333', padding: '8px 0', textAlign: 'left' }}>
@@ -374,7 +374,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
                       });
                     }}
                     title="Update base install"
-                    disabled={!steamCmdDetected || actionLoading}
+                    disabled={!steamCmdDetected}
                   >
                     Yes
                   </button>
@@ -398,7 +398,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
                       });
                     }}
                     title="Install base install"
-                    disabled={!steamCmdDetected || actionLoading}
+                    disabled={!steamCmdDetected}
                   >
                     Install
                   </button>
@@ -424,8 +424,8 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
               <label>Path:<br /><input value={form.path || ''} onChange={e => setForm(f => ({ ...f, path: e.target.value }))} style={{ width: '100%' }} /></label>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowAdd(false)} disabled={actionLoading}>Cancel</button>
-              <button onClick={handleAddSubmit} disabled={actionLoading || !steamCmdDetected}>Add</button>
+              <button onClick={() => setShowAdd(false)} disabled={false}>Cancel</button>
+              <button onClick={handleAddSubmit} disabled={!steamCmdDetected}>Add</button>
             </div>
           </div>
         </div>
@@ -444,8 +444,8 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
               <label>Path:<br /><input value={form.path || ''} onChange={e => setForm(f => ({ ...f, path: e.target.value }))} style={{ width: '100%' }} /></label>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowUpdate(false)} disabled={actionLoading}>Cancel</button>
-              <button onClick={handleUpdateSubmit} disabled={actionLoading || !steamCmdDetected}>Update</button>
+              <button onClick={() => setShowUpdate(false)} disabled={false}>Cancel</button>
+              <button onClick={handleUpdateSubmit} disabled={!steamCmdDetected}>Update</button>
             </div>
           </div>
         </div>
@@ -462,8 +462,8 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
               <label>Path:<br /><input value={form.path || ''} onChange={e => setForm(f => ({ ...f, path: e.target.value }))} style={{ width: '100%' }} /></label>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowInstall(false)} disabled={actionLoading}>Cancel</button>
-              <button onClick={handleInstallSubmit} disabled={actionLoading || !steamCmdDetected}>Install</button>
+              <button onClick={() => setShowInstall(false)} disabled={false}>Cancel</button>
+              <button onClick={handleInstallSubmit} disabled={!steamCmdDetected}>Install</button>
             </div>
           </div>
         </div>
