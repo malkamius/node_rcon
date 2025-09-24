@@ -46,3 +46,4 @@ package-lock.json
 log.txt
 
 logs/*.jsonl
+elevated/$logPath

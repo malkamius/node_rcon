@@ -157,6 +157,7 @@ async function checkBaseInstallUpdates() {
         let isDirty = buildId != base.version || base.updateAvailable !== newUpdateAvailable || base.latestBuildId !== latestBuildId
         base.version = buildId;
         base.updateAvailable = newUpdateAvailable;
+        base.installAvailable = false;
         base.latestBuildId = latestBuildId;
         base.isDirty = isDirty;
       } else {
@@ -169,6 +170,7 @@ async function checkBaseInstallUpdates() {
     } catch {
       base.version = null;
       base.updateAvailable = false;
+      base.installAvailable = false;
       base.latestBuildId = latestBuildId;
       base.isDirty = true;
     }
