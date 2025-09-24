@@ -1,3 +1,11 @@
+## 2025-09-24
+- Migrated backend elevated operations to use the new `sendElevatedCommand` function, which communicates with the `elevated` service via HTTP POST.
+- Removed all usage of `sendAdminSocketCommand` in backend handlers (instance install, SteamCMD install, adminTask, etc.).
+- Updated `BaseInstallHandler` and `SessionHandler` to use the new endpoint for privileged operations.
+- Installed and typed `node-fetch` for HTTP requests to the elevated service.
+- All instance install and admin tasks now use the new elevated service endpoint.
+
+# 2025-09-24 (earlier)
 ## 2025-09-23
 
 - Frontend: Updated `InstanceManager.tsx` to include all required parameter inputs for instance installation (queryPort, gamePort, mapName, sessionName, adminPassword, serverPassword).
@@ -49,17 +57,21 @@ Next steps:
   - Test all WebSocket message types for correct routing and behavior.
   - Consider further splitting or documenting handler context dependencies.
   - Update requirements and plan files to reflect this refactor.
-## 2025-07-06
-- Migrated all session line and process status frontend fetch calls (`rconTerminalManager.ts`, `processStatusApi.ts`) to use the persistent WebSocket connection (`wsRequest`).
-- Added WebSocket backend handler for `getProcessStatus` to support process status requests from the frontend.
-- All session line actions (get, clear) and process status are now handled via the main WebSocket connection.
-- Next steps: Review and migrate any remaining frontend fetch calls to WebSocket as needed.
-## 2025-07-06
+
+## 2025-09-24
+- Migrated backend elevated operations to use the new `sendElevatedCommand` function, which communicates with the `elevated` service via HTTP POST.
+- Removed all usage of `sendAdminSocketCommand` in backend handlers (instance install, SteamCMD install, etc.).
+- Updated `BaseInstallHandler` and `SessionHandler` to use the new endpoint for privileged operations.
+- Installed and typed `node-fetch` for HTTP requests to the elevated service.
+- All instance install and admin tasks now use the new elevated service endpoint.
+
+### SteamCMD Installer Migration
+- Deprecated the PowerShell-based `Install-SteamCmd.ps1` script.
+- Added a new cross-platform Node.js script `install-steamcmd.js` for downloading and extracting SteamCMD.
+- Updated documentation in `README.md` to reflect the new installation method.
+- Installed the `unzipper` npm package for zip extraction in Node.js.
 - Completed migration of all INI/config and process control actions in `ServerConfigTab.tsx` to use the shared WebSocket connection (`wsRequest`).
 - Backend (`server.ts`) now supports `getServerIni`, `saveServerIni`, `startServer`, and `stopServer` WebSocket message types for these actions.
-- Confirmed requirements and plan files for server config/INI management are up to date for this feature scope.
-- Next steps: Continue migrating any remaining frontend fetch calls to WebSocket and add backend handlers as needed.
-## 2024-06-09
 - Added WebSocket backend handlers in `server.ts` for `getServerIni`, `saveServerIni`, `startServer`, and `stopServer` to support frontend migration from fetch to WebSocket for INI/config and process control actions.
 - Added `getIni` and `saveIni` async exports to `iniApi.ts` for direct backend usage by WebSocket handlers.
 - Next steps: Continue migrating remaining frontend fetch calls to use the shared WebSocket and add backend handlers as needed.

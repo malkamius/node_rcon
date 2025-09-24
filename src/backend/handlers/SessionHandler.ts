@@ -52,15 +52,6 @@ export class SessionHandler {
         saveSessionLinesToDisk(msg.key, sessionLines[msg.key]);
         broadcast('sessionLine', { key: msg.key, line: outputLine });
       }
-    },
-    adminTask: async (ws: WebSocket, msg: any) => {
-      const { sendAdminSocketCommand } = this.context;
-      try {
-        const result = await sendAdminSocketCommand(msg.script);
-        ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, result }));
-      } catch (err) {
-        ws.send(JSON.stringify({ type: 'adminTaskResult', script: msg.script, error: String(err) }));
-      }
-    },
+    }
   };
 }

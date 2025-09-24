@@ -55,11 +55,24 @@ cd node_rcon
 npm install
 ```
 
-### 4.5
-Start a powershell as administrator and execute
+
+### 4.5 (Windows Only)
+Start a PowerShell as administrator and execute:
 ```sh
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned
 ```
+
+---
+
+## SteamCMD Installation
+
+To install SteamCMD, use the provided Node.js script:
+
+```sh
+node install-steamcmd.js <install-directory>
+```
+
+This will download and extract SteamCMD to the specified directory. The old PowerShell script is now deprecated.
 if you are unable to run npm
 
 ### 5. Build the Project

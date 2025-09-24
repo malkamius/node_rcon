@@ -1,3 +1,5 @@
+# Deprecated, elevated node project is used to create instances now, and should be ran by an elevated task
+
 # Requires PowerShell 5.1 or newer
 # This script creates an Ark Ascended server instance directory and sets up junctions/symlinks
 # to shared base server files. It handles privilege elevation.

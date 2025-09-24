@@ -1,3 +1,5 @@
+# Deprecated, node is used to download steamcmd now, no elevated permissions should be required
+
 param(
     [Parameter(Mandatory=$true)]
     [string]$InstallDirectory
@@ -54,4 +56,4 @@ Write-Host "You can now run steamcmd.exe from this folder."
 # Write-Host "Adding SteamCMD to system PATH..."
 # $env:Path += ";$InstallDirectory"
 # [Environment]::SetEnvironmentVariable("Path", $env:Path, [EnvironmentVariableTarget]::Machine)
-# Write-Host "SteamCMD added to system PATH. You may need to restart your terminal for changes to take effe
+# Write-Host "SteamCMD added to system PATH. You may need to restart your terminal for changes to take effect."
