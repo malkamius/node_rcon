@@ -1,35 +1,9 @@
 import { existsSync } from "fs";
+import { sendElevatedCommand } from '../adminSocketClient';
+import { installSteamCmd } from '../steamcmdInstaller';
 
 export class BaseInstallHandler {
-  async installInstance(ws: WebSocket, msg: any): Promise<void> {
-    const { sendAdminSocketCommand } = this.context;
-    const {
-      baseInstallPath,
-      instanceDirectory,
-      queryPort,
-      gamePort,
-      mapName,
-      sessionName,
-      adminPassword,
-      serverPassword
-    } = msg;
-    if (!baseInstallPath || !instanceDirectory || !queryPort || !gamePort || !mapName || !sessionName || !adminPassword) {
-      ws.send(JSON.stringify({ type: 'installInstance', error: 'Missing required parameters', requestId: msg.requestId }));
-      return;
-    }
-    // Build argument list for the PowerShell script
-    const args = [
-      '-BaseServerInstallDirectory', `${baseInstallPath}`,
-      '-InstanceDirectory', `${instanceDirectory}`
-    ];
-    // Optionally add more params as needed (future: queryPort, gamePort, etc.)
-    try {
-      const output = await sendAdminSocketCommand('Install-Instance.ps1', args);
-      ws.send(JSON.stringify({ type: 'installInstance', ok: true, output, requestId: msg.requestId }));
-    } catch (err: any) {
-      ws.send(JSON.stringify({ type: 'installInstance', error: String(err), requestId: msg.requestId }));
-    }
-  }
+  
   private broadcast: ((type: string, payload: any) => void) | null = null;
   constructor(private context: any) {}
 
@@ -38,6 +12,33 @@ export class BaseInstallHandler {
   }
 
   handlers = {
+    installInstance: async (ws: WebSocket, msg: any): Promise<void> => {
+      const {
+        baseInstallPath,
+        instanceDirectory,
+        queryPort,
+        gamePort,
+        mapName,
+        sessionName,
+        adminPassword,
+        serverPassword
+      } = msg;
+      if (!baseInstallPath || !instanceDirectory || !queryPort || !gamePort || !mapName || !sessionName || !adminPassword) {
+        ws.send(JSON.stringify({ type: 'installInstance', error: 'Missing required parameters', requestId: msg.requestId }));
+        return;
+      }
+      // Use the new elevated service endpoint
+      try {
+        const params = {
+          baseInstallPath,
+          instanceDirectory
+        };
+        const output = await sendElevatedCommand('InstallInstance', params);
+        ws.send(JSON.stringify({ type: 'installInstance', ok: true, output, requestId: msg.requestId }));
+      } catch (err: any) {
+        ws.send(JSON.stringify({ type: 'installInstance', error: String(err), requestId: msg.requestId }));
+      }
+    },
     getBaseInstalls: async (ws: WebSocket, msg: any) => {
       const { config } = this.context;
       if(config.checkBaseInstallUpdates)
@@ -109,7 +110,7 @@ export class BaseInstallHandler {
       const { getProfiles, processManager } = this.context;
       const profiles = getProfiles();
       const baseInstallPath = msg.path;
-      const affectedProfiles = profiles.filter((p: any) => p.baseInstallPath === baseInstallPath);
+      const affectedProfiles = profiles.filter((p: any) => p.directory === baseInstallPath);
       const fs = require('fs');
       const path = require('path');
       const pty = require('@homebridge/node-pty-prebuilt-multiarch');
@@ -223,15 +224,14 @@ export class BaseInstallHandler {
       ws.send(JSON.stringify({ type: 'setSteamCmdPath', exists, steamCmdPath, requestId: msg.requestId }));
     },
     installSteamCmd: async (ws: WebSocket, msg: any) => {
-      const { sendAdminSocketCommand } = this.context;
       const { baseInstallPath } = msg;
       if (!baseInstallPath) {
         ws.send(JSON.stringify({ type: 'installSteamCmd', error: 'Missing baseInstallPath', requestId: msg.requestId }));
         return;
       }
       try {
-        const output = await sendAdminSocketCommand('Install-SteamCmd.ps1', ['-InstallDirectory', baseInstallPath]);
-        ws.send(JSON.stringify({ type: 'installSteamCmd', ok: true, output, requestId: msg.requestId }));
+        await installSteamCmd(baseInstallPath);
+        ws.send(JSON.stringify({ type: 'installSteamCmd', ok: true, requestId: msg.requestId }));
       } catch (err: any) {
         ws.send(JSON.stringify({ type: 'installSteamCmd', error: String(err), requestId: msg.requestId }));
       }

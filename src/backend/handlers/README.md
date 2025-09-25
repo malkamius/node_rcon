@@ -26,7 +26,6 @@ This directory contains handler classes for WebSocket message types, grouped by 
 | getSessionLines             | SessionHandler       | SessionHandler.ts     |
 | clearSessionLines           | SessionHandler       | SessionHandler.ts     |
 | command                     | SessionHandler       | SessionHandler.ts     |
-| adminTask                   | SessionHandler       | SessionHandler.ts     |
 | getProfiles                 | ProfileHandler       | ProfileHandler.ts     |
 | saveProfiles                | ProfileHandler       | ProfileHandler.ts     |
 | getProcessStatus            | ProfileHandler       | ProfileHandler.ts     |

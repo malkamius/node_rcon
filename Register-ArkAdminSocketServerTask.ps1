@@ -11,7 +11,10 @@ $taskPath = "\ArkServerManager\"
 $ps1Path = Join-Path $PSScriptRoot 'ArkAdminSocketServer.ps1'
 $workingDir = Split-Path $ps1Path
 $logPath = Join-Path $PSScriptRoot 'ArkAdminSocketServer.log'
-$taskAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ps1Path`" *> `"$logPath`"" -WorkingDirectory $workingDir
+$elevatedDir = Join-Path $PSScriptRoot 'elevated'
+$workingDir = $elevatedDir
+$logPath = Join-Path $elevatedDir 'elevated-service.log'
+$taskAction = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c npm start > `$logPath` 2>&1" -WorkingDirectory $workingDir
 $taskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit '00:00:00'
 $trigger = New-ScheduledTaskTrigger -AtStartup
 

@@ -11,7 +11,7 @@ import { RconManager } from './rconManager';
 import * as rconScriptEngine from './rconScriptEngine';
 import iniApi from './iniApi';
 import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
-import { ensureSocketServer, sendAdminSocketCommand } from './adminSocketClient';
+import { ensureSocketServer } from './adminSocketClient';
 import { exit } from 'process';
 import { exec, spawn } from 'child_process';
 
@@ -49,33 +49,23 @@ function auditLog(event: string, details: any) {
 
 
 export function getBaseInstall(InstancePath: string): Promise<string | Error> {
-  return new Promise((resolve, reject) => {
-    const PathTocheck = InstancePath + "\\steamapps";
-    // Use single quotes for -Command and escape inner quotes for -Path
-    const powershellCommand = `.\\Get-DirectoryPath.ps1 -Path '${PathTocheck}'`;
-
-    exec(
-      `powershell.exe -NoProfile -Command "${powershellCommand}"`,
-      { windowsHide: false, maxBuffer: 1024 * 1024 * 10 },
-      (err, stdout, stderr) => {
-        if (err) {
-          console.error('Error executing PowerShell command:', err);
-          if (stderr) console.error('PowerShell Stderr:', stderr);
-          return reject(err);
-        }
-        if((stderr && stderr.trim().length > 0) && (!stdout || !stdout.trim())) {
-          console.error('PowerShell Stderr:', stderr);
-          return reject(new Error(stderr.trim()));
-        }
-        // Sometimes PowerShell outputs to stderr even on success
-        const output = (stdout && stdout.trim());
-        if (!output) {
-          return reject(new Error('No output from PowerShell script'));
-        }
-        return resolve(path.dirname(output));
+  const fsPromises = require('fs').promises;
+  const PathTocheck = InstancePath + "\\steamapps";
+  return fsPromises.stat(PathTocheck)
+    .then((stat: any) => {
+      if (!stat.isDirectory()) {
+        throw new Error('Path exists but is not a directory: ' + PathTocheck);
       }
-    );
-  });
+      // Resolve symlinks/junctions
+      return fsPromises.realpath(PathTocheck);
+    })
+    .then((realPath: string) => {
+      // Return the parent directory of the resolved steamapps path
+      return path.dirname(realPath);
+    })
+    .catch((err: any) => {
+      return Promise.reject(err);
+    });
 }
 
 async function getBaseInstallsFromProfiles() {
@@ -167,6 +157,7 @@ async function checkBaseInstallUpdates() {
         let isDirty = buildId != base.version || base.updateAvailable !== newUpdateAvailable || base.latestBuildId !== latestBuildId
         base.version = buildId;
         base.updateAvailable = newUpdateAvailable;
+        base.installAvailable = false;
         base.latestBuildId = latestBuildId;
         base.isDirty = isDirty;
       } else {
@@ -179,6 +170,7 @@ async function checkBaseInstallUpdates() {
     } catch {
       base.version = null;
       base.updateAvailable = false;
+      base.installAvailable = false;
       base.latestBuildId = latestBuildId;
       base.isDirty = true;
     }
@@ -203,11 +195,9 @@ if (process.env.NODE_ENV !== 'test') {
 
 async function ensureSocket()
 {
-  await ensureSocketServer().catch(err => {
-    console.error('Failed to ensure admin socket server:', err);
-    exit(1);
-  });
+  return ensureSocketServer();
 }
+
 ensureSocket().catch(err => {
   console.error('Error ensuring admin socket server:', err);
   exit(1);
@@ -663,7 +653,6 @@ const handlerContext = {
   saveSessionLinesToDisk,
   broadcast,
   rconManager,
-  sendAdminSocketCommand,
   getProfiles,
   saveProfiles,
   setServerManuallyStopped,
