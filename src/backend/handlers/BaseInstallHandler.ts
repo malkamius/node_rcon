@@ -115,7 +115,7 @@ export class BaseInstallHandler {
       const fs = require('fs');
       const path = require('path');
 
-      const affectedProfiles = profiles.filter((p: any) => p.directory === baseInstallPath || realpathSync(p.baseInstallPath) === realpathSync(baseInstallPath));
+      const affectedProfiles = profiles.filter((p: any) => p.directory === baseInstallPath || realpathSync(p.directory) === realpathSync(baseInstallPath));
       const pty = require('@homebridge/node-pty-prebuilt-multiarch');
       
       if (affectedProfiles.length > 0) {
