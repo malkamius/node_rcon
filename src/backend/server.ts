@@ -193,15 +193,15 @@ if (process.env.NODE_ENV !== 'test') {
   startBaseInstallUpdateInterval();
 }
 
-async function ensureSocket()
-{
-  return ensureSocketServer();
-}
+// async function ensureSocket()
+// {
+//   return ensureSocketServer();
+// }
 
-ensureSocket().catch(err => {
-  console.error('Error ensuring admin socket server:', err);
-  exit(1);
-});
+// ensureSocket().catch(err => {
+//   console.error('Error ensuring admin socket server:', err);
+//   exit(1);
+// });
 
 
 const server = http.createServer(app);
