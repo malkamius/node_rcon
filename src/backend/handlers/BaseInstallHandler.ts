@@ -1,6 +1,7 @@
-import { existsSync } from "fs";
+import { existsSync, realpathSync } from "fs";
 import { sendElevatedCommand } from '../adminSocketClient';
 import { installSteamCmd } from '../steamcmdInstaller';
+
 
 export class BaseInstallHandler {
   
@@ -110,49 +111,49 @@ export class BaseInstallHandler {
       const { getProfiles, processManager } = this.context;
       const profiles = getProfiles();
       const baseInstallPath = msg.path;
-      const affectedProfiles = profiles.filter((p: any) => p.directory === baseInstallPath);
+      
       const fs = require('fs');
       const path = require('path');
+
+      const affectedProfiles = profiles.filter((p: any) => p.directory === baseInstallPath || realpathSync(p.baseInstallPath) === realpathSync(baseInstallPath));
       const pty = require('@homebridge/node-pty-prebuilt-multiarch');
+      
       if (affectedProfiles.length > 0) {
         const runningChecks = await Promise.all(
           affectedProfiles.map((profile: any) => processManager.isRunning(`${profile.host}:${profile.port}`, profile))
         );
-        if (!runningChecks.some(running => running)) {
-          if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'starting', baseInstallPath });
-          const logFile = path.join(baseInstallPath, `steamcmd_update_${Date.now()}.log`);
-          for (const profile of affectedProfiles) {
-            try {
-              const steamCmdExe = path.join(this.context.config.steamCmdPath || "", 'steamcmd.exe');
-              const args = ['+force_install_dir', baseInstallPath, '+login', 'anonymous', '+app_update', '2430930', 'validate', '+quit'];
-              const ptyProcess = pty.spawn(steamCmdExe, args, {
-                name: 'xterm-color',
-                cols: 80,
-                rows: 30,
-                cwd: baseInstallPath,
-                env: process.env,
-                useConpty: false
-              });
-              ptyProcess.on('data', (data: string) => {
-                if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'progress', baseInstallPath, output: data });
-                process.stdout.write(data);
-                //fs.appendFileSync(logFile, data);
-              });
-              ptyProcess.on('exit', (code: number, signal: number) => {
-                if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'done', baseInstallPath, code, signal });
-                //fs.appendFileSync(logFile, `\nProcess exited with code ${code} and signal ${signal}\n`);
-              });
-            } catch (err) {
-              if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'error', baseInstallPath, output: String(err) });
-              return;
-            }
-          }
-        } else {
+        if (runningChecks.some(running => running)) {
           if (this.broadcast) this.broadcast('error', { message: 'Cannot update base install while servers are running' });
+          return;
         }
-      } else {
-        if (this.broadcast) this.broadcast('error', { message: 'Base install not found' });
+      } 
+      if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'starting', baseInstallPath });
+      const logFile = path.join(baseInstallPath, `steamcmd_update_${Date.now()}.log`);
+      try {
+        const steamCmdExe = path.join(this.context.config.steamCmdPath || "", 'steamcmd.exe');
+        const args = ['+force_install_dir', baseInstallPath, '+login', 'anonymous', '+app_update', '2430930', 'validate', '+quit'];
+        const ptyProcess = pty.spawn(steamCmdExe, args, {
+          name: 'xterm-color',
+          cols: 80,
+          rows: 30,
+          cwd: baseInstallPath,
+          env: process.env,
+          useConpty: false
+        });
+        ptyProcess.on('data', (data: string) => {
+          if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'progress', baseInstallPath, output: data });
+          process.stdout.write(data);
+          //fs.appendFileSync(logFile, data);
+        });
+        ptyProcess.on('exit', (code: number, signal: number) => {
+          if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'done', baseInstallPath, code, signal });
+          //fs.appendFileSync(logFile, `\nProcess exited with code ${code} and signal ${signal}\n`);
+        });
+      } catch (err) {
+        if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'error', baseInstallPath, output: String(err) });
+        return;
       }
+      
     },
 
     installSteamGame: async (ws: WebSocket, msg: any) => {
