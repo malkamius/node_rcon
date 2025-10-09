@@ -1,3 +1,13 @@
+## 2025-10-09
+- Backend process status check now runs immediately on startup, not delayed by the interval.
+## 2025-10-09
+- Frontend now uses processStatus from each profile (if present) to immediately populate statusMap, so process status is shown without waiting for the next periodic update.
+## 2025-10-09
+- Store process statuses by key when processStatus is emitted from processManager.
+- Attach processStatus to each profile in /api/profiles and internal getProfiles calls.
+- Refactored getProfiles to allow injection of processStatuses for consistent status reporting.
+- Updated server.ts and profiles.ts to support this feature.
+
 ## 2025-09-24
 - Migrated backend elevated operations to use the new `sendElevatedCommand` function, which communicates with the `elevated` service via HTTP POST.
 - Removed all usage of `sendAdminSocketCommand` in backend handlers (instance install, SteamCMD install, adminTask, etc.).

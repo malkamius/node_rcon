@@ -137,7 +137,7 @@ export class ArkSAProcessManager extends ProcessManager {
   // Periodically check status of all managed sessions
   startPeriodicStatusCheck(intervalMs: number = 10000) {
     const portscanner = require('portscanner');
-    setInterval(async () => {
+    const checkStatus = async () => {
       const runningProcs = await listProcesses();
       for (const profile of getProfiles()) {
         const pathMod = require('path');
@@ -167,6 +167,10 @@ export class ArkSAProcessManager extends ProcessManager {
           this.emit('processStatus', `${profile.host}:${profile.port}`, { running: false });
         }
       }
-    }, intervalMs);
+    };
+    // Run immediately
+    checkStatus();
+    // Then run on interval
+    setInterval(checkStatus, intervalMs);
   }
 }

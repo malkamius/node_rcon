@@ -121,6 +121,13 @@ export const ServerManagerPage: React.FC = () => {
       }
       const profiles = msg.profiles || [];
       setServerProfiles(profiles);
+      // Immediately populate statusMap from processStatus in profiles if present
+      const initialStatusMap: Record<string, any> = {};
+      for (const p of profiles) {
+        const key = `${p.host}:${p.port}`;
+        if (p.processStatus) initialStatusMap[key] = p.processStatus;
+      }
+      setStatusMap(initialStatusMap);
       setError(null);
       if (!selectedKey && profiles.length > 0) {
         let key = `${profiles[0].host}:${profiles[0].port}`;

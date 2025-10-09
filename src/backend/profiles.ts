@@ -3,9 +3,23 @@ import fs from 'fs';
 
 const configPath = path.join(__dirname, '../../config.json');
 
+// Optionally accept processStatuses to tack on status to each profile
+let getProcessStatuses: (() => Record<string, any>) | null = null;
+export function setGetProcessStatuses(fn: typeof getProcessStatuses) {
+  getProcessStatuses = fn;
+}
+
 export function getProfiles() {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  return config.profiles || [];
+  const profiles = config.profiles || [];
+  if (getProcessStatuses) {
+    const statuses = getProcessStatuses();
+    return profiles.map((p: any) => {
+      const key = `${p.host}:${p.port}`;
+      return { ...p, processStatus: statuses[key] || null };
+    });
+  }
+  return profiles;
 }
 
 // Handler context and broadcast will be injected/set by server.ts

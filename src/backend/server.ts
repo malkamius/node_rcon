@@ -1,3 +1,7 @@
+// Wire up getProcessStatuses for getProfiles
+import { setGetProcessStatuses, getProfiles, saveProfiles } from './profiles';
+const processStatuses: Record<string, ProcessStatus> = {};
+setGetProcessStatuses(() => processStatuses);
 // File: src/backend/server.ts
 import express, { Request, Response } from 'express';
 import { ArkSAProcessManager, ProcessManager, ServerProcessProfile, ProcessStatus } from './ProcessManager';
@@ -6,7 +10,7 @@ import { WebSocketServer } from 'ws';
 import path from 'path';
 import fs from 'fs';
 
-import { getProfiles, saveProfiles } from './profiles';
+
 import { RconManager } from './rconManager';
 import * as rconScriptEngine from './rconScriptEngine';
 import iniApi from './iniApi';
@@ -625,7 +629,10 @@ function broadcast(type: string, payload: any) {
   };
   rconManager.on('chatMessage', chatListener);
 
+// Store process statuses by key
+
 processManager.on('processStatus', (key: string, status: ProcessStatus) => {
+  processStatuses[key] = status;
   broadcast('processStatus', { key, status });
 });
 processManager.startPeriodicStatusCheck(10000); // Check every 10 seconds
@@ -718,7 +725,13 @@ wss.on('connection', (ws) => {
 
 // API: Get server profiles
 app.get('/api/profiles', (req, res) => {
-  res.json(getProfiles());
+  // Attach process status to each profile by key
+  const profiles = getProfiles();
+  const profilesWithStatus = profiles.map((p: any) => {
+    const key = `${p.host}:${p.port}`;
+    return { ...p, processStatus: processStatuses[key] || null };
+  });
+  res.json(profilesWithStatus);
 });
 
 

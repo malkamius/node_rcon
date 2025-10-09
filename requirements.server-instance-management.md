@@ -1,3 +1,9 @@
+### 1.1. Process Status Tracking
+- The backend must track the process status for each server instance by key (host:port).
+- When process status changes (e.g., process starts, stops, or updates), the backend updates an in-memory map of statuses.
+- When profiles are retrieved (via API or internally), each profile must include its current process status (e.g., running, startTime, etc.) as a `processStatus` property.
+- The frontend should display this process status for each server profile, even if RCON is disconnected.
+
 # Server Instance Management Requirements
 
 sample acf file from the local base file install:
