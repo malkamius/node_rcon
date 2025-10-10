@@ -157,7 +157,7 @@ async function checkBaseInstallUpdates() {
         const acfRaw = require('fs').readFileSync(acfPath, 'utf-8');
         const buildIdMatch = acfRaw.match(/"buildid"\s+"(\d+)"/);
         const buildId = buildIdMatch ? buildIdMatch[1] : null;
-        const newUpdateAvailable = latestBuildId && buildId && buildId !== latestBuildId
+        const newUpdateAvailable = latestBuildId && buildId && Number.parseInt(buildId) < Number.parseInt(latestBuildId);
         let isDirty = buildId != base.version || base.updateAvailable !== newUpdateAvailable || base.latestBuildId !== latestBuildId
         base.version = buildId;
         base.updateAvailable = newUpdateAvailable;
