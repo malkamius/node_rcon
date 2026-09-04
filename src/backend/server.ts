@@ -20,7 +20,7 @@ import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
 import { ensureSocketServer } from './adminSocketClient';
 import { exit } from 'process';
 import { exec, spawn } from 'child_process';
-import { authMiddleware, registerAuth } from './auth';
+import { authMiddleware, registerAuth, getAuthenticatedUser, AuthUser } from './auth';
 import {
   parseAcfBuildId,
   getAcfBuildIdFromDir,
@@ -988,10 +988,15 @@ const masterHandlers: { [msgType: string]: (ws: any, msg: any) => Promise<void> 
   ...iniHandler.handlers,
 };
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  const authUser = getAuthenticatedUser(req as any, config);
+  if (!authUser) { ws.close(1008, 'Authentication required'); return; }
+  (ws as any).authUser = authUser;
+  const canAccess = (key: string) => authUser.role === 'admin' || authUser.role === 'server-admin' || (authUser.assignedInstanceKeys || []).includes(key);
+  const visibleProfiles = () => getProfiles().filter((p: any) => canAccess(`${p.host}:${p.port}`));
   ws.send(JSON.stringify({ type: 'hello', message: 'WebSocket connected' }));
   // On connect, reload all session lines from disk for all known keys
-  const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':'));
+  const allKeys = fs.readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).map(f => f.replace(/\.jsonl$/, '').replace(/_/g, ':')).filter(canAccess);
   for (const key of allKeys) {
     if (!sessionLines[key]) sessionLines[key] = loadSessionLinesFromDisk(key);
   }
@@ -1008,6 +1013,19 @@ wss.on('connection', (ws) => {
   ws.on('message', async (data) => {
     try {
       const msg = JSON.parse(data.toString());
+      const requestedKeys = Array.isArray(msg.keys) ? msg.keys : (msg.key ? [msg.key] : []);
+      const profileForIndex = typeof msg.idx === 'number' ? getProfiles()[msg.idx] : null;
+      if (profileForIndex) requestedKeys.push(`${profileForIndex.host}:${profileForIndex.port}`);
+      if (requestedKeys.some((key: string) => !canAccess(key))) {
+        ws.send(JSON.stringify({ type: 'error', error: 'You do not have access to this server', requestId: msg.requestId })); return;
+      }
+      if (msg.type === 'saveProfiles' && !['admin', 'server-admin'].includes(authUser.role)) {
+        ws.send(JSON.stringify({ type: 'error', error: 'Server administration access required', requestId: msg.requestId })); return;
+      }
+      if (msg.type === 'saveProfiles' && authUser.role !== 'admin') {
+        const allowed = new Set((authUser.role === 'server-admin' ? getProfiles() : visibleProfiles()).map((p: any) => `${p.host}:${p.port}`));
+        if ((msg.profiles || []).some((p: any) => !allowed.has(`${p.host}:${p.port}`))) { ws.send(JSON.stringify({ type: 'error', error: 'You cannot add or modify an unassigned server', requestId: msg.requestId })); return; }
+      }
       const handler = masterHandlers[msg.type];
       if (handler) {
         await handler(ws, msg);

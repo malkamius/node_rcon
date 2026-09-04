@@ -52,6 +52,7 @@ import {
 
 
 import { TabErrorBoundary } from './TabErrorBoundary';
+import { AccessManagementPanel } from './AccessManagementPanel';
 
 export const ServerManagerPage: React.FC = () => {
   const [serverProfiles, setServerProfiles] = useState<ServerProfile[]>([]);
@@ -118,6 +119,10 @@ export const ServerManagerPage: React.FC = () => {
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [authUser, setAuthUser] = useState<any>(null);
+  const [showAccessManagement, setShowAccessManagement] = useState(false);
+
+  useEffect(() => { fetch('/api/auth/status').then(r => r.json()).then(s => setAuthUser(s.user)).catch(() => undefined); }, []);
 
   // Resize listener for responsive mobile state
   useEffect(() => {
@@ -663,6 +668,7 @@ export const ServerManagerPage: React.FC = () => {
         >
           Manage Servers
         </button>
+        {['admin', 'server-admin'].includes(authUser?.role) && <button onClick={() => setShowAccessManagement(true)} style={{ padding: '0.5em 1em', minHeight: 36, borderRadius: 4, background: '#3a3f4b', color: '#fff', border: '1px solid #555', fontWeight: 600, cursor: 'pointer' }}>Manage Access</button>}
       </div>
       {/* Main flex row: sidebar + content */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden', position: 'relative' }}>
@@ -923,6 +929,7 @@ export const ServerManagerPage: React.FC = () => {
         error={error}
         clearError={clearError}
       />
+      {showAccessManagement && <AccessManagementPanel siteAdmin={authUser?.role === 'admin'} onClose={() => setShowAccessManagement(false)} />}
     </div>
   );
 };

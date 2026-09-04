@@ -9,7 +9,10 @@ export class ProfileHandler {
     getProfiles: async (ws: WebSocket, msg: any) => {
       const { getProfiles, config } = this.context;
       try {
-        const rawProfiles = getProfiles();
+        const rawProfiles = getProfiles().filter((p: any) => {
+          const user = (ws as any).authUser;
+          return user?.role === 'admin' || user?.role === 'server-admin' || (user?.assignedInstanceKeys || []).includes(`${p.host}:${p.port}`);
+        });
         const baseInstalls = config?.baseInstalls || [];
         const profiles = rawProfiles.map((p: any) => {
           const linkedBase = findLinkedBaseInstall(p.directory, baseInstalls);
@@ -58,7 +61,10 @@ export class ProfileHandler {
     getProcessStatus: async (ws: WebSocket, msg: any) => {
       const { getProfiles, processManager, config } = this.context;
       try {
-        const profiles = getProfiles();
+        const profiles = getProfiles().filter((p: any) => {
+          const user = (ws as any).authUser;
+          return user?.role === 'admin' || user?.role === 'server-admin' || (user?.assignedInstanceKeys || []).includes(`${p.host}:${p.port}`);
+        });
         const baseInstalls = config?.baseInstalls || [];
         const status = profiles.map((profile: any) => {
           const key = `${profile.host}:${profile.port}`;
