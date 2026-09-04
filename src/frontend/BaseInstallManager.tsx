@@ -120,11 +120,10 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
       try {
         const msg = JSON.parse(event.data);
         if (msg && msg.requestId && pendingRequests.current[msg.requestId]) {
-          // Only remove handler for error/done
-          if ((msg.status && (msg.status === 'done' || msg.status === 'error')) || msg.error) {
-            pendingRequests.current[msg.requestId](msg);
-            delete pendingRequests.current[msg.requestId];
-          }
+          // Request responses are one-shot. Streaming progress messages do not carry
+          // requestId, so they continue through the progress handler below.
+          pendingRequests.current[msg.requestId](msg);
+          delete pendingRequests.current[msg.requestId];
         }
         // Always process baseInstalls and baseInstallsUpdated
         if (msg.type === 'baseInstalls' || msg.type === 'baseInstallsUpdated') {
@@ -182,9 +181,10 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
     ws.send(JSON.stringify(msg));
   }
 
-  const loadBaseInstalls = () => {
+  const loadBaseInstalls = (showLoading = false) => {
     if (!ws || ws.readyState !== 1) return;
-    setLoading(true);
+    // Polling is an incremental refresh; do not blank/redraw the manager while it runs.
+    if (showLoading) setLoading(true);
     sendWS({ type: 'getBaseInstalls' }, (data) => {
       mergeBaseInstalls(data.baseInstalls || []);
       setLoading(false);
@@ -199,11 +199,11 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
     if (!ws || !active) return;
 
     const onOpen = () => {
-      loadBaseInstalls();
+      loadBaseInstalls(true);
     };
 
     if (ws.readyState === 1) {
-      loadBaseInstalls();
+      loadBaseInstalls(true);
     } else if (ws.readyState === 0) {
       ws.addEventListener('open', onOpen);
     }
@@ -223,7 +223,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
   // Refresh when tab becomes active
   useEffect(() => {
     if (active && !prevActiveRef.current && ws && ws.readyState === 1) {
-      loadBaseInstalls();
+      loadBaseInstalls(true);
     }
     prevActiveRef.current = active;
   }, [active, ws]);
@@ -253,7 +253,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
         setFormError(res.error || 'Failed to add base install');
       } else {
         setShowAdd(false);
-        loadBaseInstalls();
+        loadBaseInstalls(true);
       }
       setActionLoading(false);
     });

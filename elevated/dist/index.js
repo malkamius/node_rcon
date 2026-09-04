@@ -7,11 +7,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const TaskHandler_1 = require("./TaskHandler");
 const installInstance_1 = require("./handlers/installInstance");
+const listProcesses_1 = require("./handlers/listProcesses");
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 const PORT = 12345;
 const registry = new TaskHandler_1.TaskHandlerRegistry();
 registry.register('InstallInstance', installInstance_1.installInstanceHandler);
+registry.register('ListProcesses', listProcesses_1.listProcessesHandler);
 app.post('/api/task', async (req, res) => {
     const { command, params } = req.body;
     if (!command)

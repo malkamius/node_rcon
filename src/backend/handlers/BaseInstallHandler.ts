@@ -200,7 +200,18 @@ export class BaseInstallHandler {
       const fs = require('fs');
       const path = require('path');
 
-      const affectedProfiles = profiles.filter((p: any) => p.directory === baseInstallPath || realpathSync(p.directory) === realpathSync(baseInstallPath));
+      if (!baseInstallPath || !existsSync(baseInstallPath)) {
+        const error = 'Base install path does not exist';
+        ws.send(JSON.stringify({ type: 'updateSteamGame', ok: false, error, requestId: msg.requestId }));
+        if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'error', baseInstallPath, output: error });
+        return;
+      }
+
+      const affectedProfiles = profiles.filter((p: any) => {
+        try {
+          return p.directory === baseInstallPath || (existsSync(p.directory) && realpathSync(p.directory) === realpathSync(baseInstallPath));
+        } catch { return false; }
+      });
       const pty = require('@homebridge/node-pty-prebuilt-multiarch');
       
       if (affectedProfiles.length > 0) {
@@ -216,7 +227,11 @@ export class BaseInstallHandler {
       const logFile = path.join(baseInstallPath, `steamcmd_update_${Date.now()}.log`);
       try {
         const steamCmdExe = path.join(this.context.config.steamCmdPath || "", 'steamcmd.exe');
+        if (!existsSync(steamCmdExe)) {
+          throw new Error(`SteamCMD executable not found at '${steamCmdExe}'`);
+        }
         const args = ['+force_install_dir', baseInstallPath, '+login', 'anonymous', '+app_update', '2430930', 'validate', '+quit'];
+        console.log(`[SteamCMD] launching '${steamCmdExe}' in '${baseInstallPath}'`, args);
         const ptyProcess = pty.spawn(steamCmdExe, args, {
           name: 'xterm-color',
           cols: 80,
@@ -225,16 +240,25 @@ export class BaseInstallHandler {
           env: process.env,
           useConpty: false
         });
+        // Acknowledge launch separately; progress and exit are broadcast asynchronously.
+        ws.send(JSON.stringify({ type: 'updateSteamGame', ok: true, started: true, requestId: msg.requestId }));
         ptyProcess.on('data', (data: string) => {
+          console.log(`[SteamCMD] ${data}`);
           if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'progress', baseInstallPath, output: data });
           process.stdout.write(data);
           //fs.appendFileSync(logFile, data);
         });
         ptyProcess.on('exit', (code: number, signal: number) => {
+          console.log(`[SteamCMD] exited with code ${code}${signal ? `, signal ${signal}` : ''}`);
           if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'done', baseInstallPath, code, signal });
+          // Re-read the manifest and broadcast the row-level change without a page reload.
+          if (this.context.checkBaseInstallUpdates) {
+            void this.context.checkBaseInstallUpdates(false);
+          }
           //fs.appendFileSync(logFile, `\nProcess exited with code ${code} and signal ${signal}\n`);
         });
       } catch (err) {
+        ws.send(JSON.stringify({ type: 'updateSteamGame', ok: false, error: String(err), requestId: msg.requestId }));
         if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'error', baseInstallPath, output: String(err) });
         return;
       }

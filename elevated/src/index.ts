@@ -2,6 +2,7 @@
 import express from 'express';
 import { TaskHandlerRegistry } from './TaskHandler';
 import { installInstanceHandler } from './handlers/installInstance';
+import { listProcessesHandler } from './handlers/listProcesses';
 
 const app = express();
 app.use(express.json());
@@ -9,6 +10,7 @@ const PORT = 12345;
 
 const registry = new TaskHandlerRegistry();
 registry.register('InstallInstance', installInstanceHandler);
+registry.register('ListProcesses', listProcessesHandler);
 
 app.post('/api/task', async (req, res) => {
   const { command, params } = req.body;
