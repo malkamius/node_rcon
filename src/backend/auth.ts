@@ -83,7 +83,9 @@ export function registerAuth(app: any, config: any, configPath: string) {
     if (!email || !email.includes('@')) return res.status(401).send('SSO token did not contain a verified email.');
     let user = auth.users.find(u => u.email.toLowerCase() === email);
     if (!user) { user = { id: crypto.randomUUID(), email, role: auth.users.length ? 'user' : 'admin', provider: 'sso' }; auth.users.push(user); persist(config, configPath); }
-    setSession(res, user); res.redirect('/?auth=success');
+    setSession(res, user);
+    if (req.query.silent === '1') return res.redirect('/?auth=silent-success&provider=sso');
+    res.redirect('/?auth=success&provider=sso');
   });
   app.post('/api/auth/master-password', (req: Request, res: Response) => {
     if (!loopback(req)) return res.status(403).json({ error: 'Master password can only be changed locally' });

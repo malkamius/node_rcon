@@ -78,7 +78,7 @@ function updateGameUserSettings(filePath, settings) {
     fs_1.default.writeFileSync(filePath, lines.join('\r\n'), 'utf-8');
 }
 const installInstanceHandler = async (params) => {
-    const { baseInstallPath, instanceDirectory, linkType = 'Junction', rconPort, queryPort, gamePort, adminPassword, serverPassword } = params;
+    const { baseInstallPath, instanceDirectory, linkType = 'Junction', rconPort, queryPort, gamePort, adminPassword, serverPassword, modIds } = params;
     if (!baseInstallPath || !instanceDirectory) {
         throw new Error('baseInstallPath and instanceDirectory are required');
     }
@@ -208,6 +208,8 @@ const installInstanceHandler = async (params) => {
     if (!fs_1.default.existsSync(gameIniPath)) {
         fs_1.default.writeFileSync(gameIniPath, '[/Script/ShooterGame.ShooterGameMode]\n', 'utf-8');
     }
+    const ids = String(modIds || '').split(/[,\s]+/).filter(Boolean).filter((v, i, a) => a.findIndex(x => x.toLowerCase() === v.toLowerCase()) === i);
+    fs_1.default.writeFileSync(path_1.default.join(instanceDirectory, 'ark-launch-args.txt'), `${ids.length ? `-mods=${ids.join(',')} ` : ''}-automanagedmods\n`, 'utf-8');
     return `SUCCESS: Ark Ascended server instance created successfully at '${instanceDirectory}'!\nUnique config files are located in: '${instanceDirectory}\\ShooterGame\\Saved\\Config\\WindowsServer'`;
 };
 exports.installInstanceHandler = installInstanceHandler;

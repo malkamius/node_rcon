@@ -43,8 +43,11 @@ export function cleanModIds(raw: string): string {
     .split(/[,\s]+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
+    .filter((s, i, all) => all.findIndex(v => v.toLowerCase() === s.toLowerCase()) === i)
     .join(',');
 }
+
+export function mergeModIds(existing: string, selected: string[]): string { return cleanModIds([existing, ...selected].join(',')); }
 
 export function parseCommandline(args?: string[]): ParsedLaunchSettings {
   const flags: Record<string, boolean> = {};

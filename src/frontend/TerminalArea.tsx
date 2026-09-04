@@ -125,7 +125,6 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       term.reset();
       term.write('Loading history...');
       lastSessionKey.current = session?.key || null;
-      fitAddonRef.current?.fit();
       return;
     }
     
@@ -170,7 +169,6 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
         term.write(formattedLines.join('\r\n') + '\r\n');
       }
       lastSessionKey.current = sessionKey;
-      fitAddonRef.current?.fit();
       return;
     }
 
@@ -181,7 +179,6 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
         term.write(toWrite + '\r\n');
       }
     }
-    fitAddonRef.current?.fit();
   }, [session, activeTab, sessionVersion, showTimestamps, loading]);
 
   return (

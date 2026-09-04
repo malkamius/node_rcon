@@ -1,0 +1,3 @@
+import express from 'express';
+import { CurseForgeModProvider } from './modProvider';
+export function createModsApi(config: any) { const router = express.Router(); router.get('/api/mods/search', async (req, res) => { const q = String(req.query.q || '').trim(); const page = Math.max(1, Number(req.query.page) || 1); const pageSize = Math.min(25, Math.max(1, Number(req.query.pageSize) || 12)); if (!q) return res.status(400).json({ error: 'A search query is required' }); try { res.json(await new CurseForgeModProvider(config.curseForgeApiKey || process.env.CURSEFORGE_API_KEY || '').search(q, page, pageSize)); } catch (e: any) { res.status(e.message.includes('not configured') ? 503 : 502).json({ error: e.message || 'Mod search failed' }); } }); return router; }

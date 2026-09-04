@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { InstanceInstallModal, InstanceInstallParams } from './InstanceInstallModal';
+import { buildOrSyncCommandline, parseCommandline } from './commandlineUtils';
 
 interface BaseInstall {
   id: string;
@@ -49,6 +50,8 @@ export const InstanceManager: React.FC<InstanceManagerProps> = ({
               host: '127.0.0.1',
               port: params.rconPort || 27020,
               password: params.adminPassword,
+              modIds: params.modIds,
+              parsedCommandline: buildOrSyncCommandline(undefined, { ...parseCommandline(), mapName: params.mapName, queryPort: params.queryPort, gamePort: params.gamePort, serverPassword: params.serverPassword, modIds: params.modIds || '' }, { name: params.sessionName, password: params.adminPassword }),
               game: 'ark_sa',
               directory: params.instanceDirectory,
               features: {

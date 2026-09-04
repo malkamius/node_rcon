@@ -32,7 +32,6 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
-  const [showUpdate, setShowUpdate] = useState(false);
   const [form, setForm] = useState<Partial<BaseInstall>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -279,26 +278,6 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
     });
   };
 
-  // Update
-  const handleUpdateSubmit = () => {
-    setFormError(null);
-    if (!form.path) {
-      setFormError('Path is required.');
-      return;
-    }
-    setActionLoading(true);
-    setError(null);
-    sendWS({ type: 'updateBaseInstall', id: selectedId, data: form }, (res) => {
-      if (!res.ok) {
-        setFormError(res.error || 'Failed to update base install');
-      } else {
-        setShowUpdate(false);
-        loadBaseInstalls();
-      }
-      setActionLoading(false);
-    });
-  };
-
   // Remove
   const handleRemove = () => {
     if (!selectedId) return;
@@ -388,11 +367,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
               <div style={{ flex: '1 1 140px', minWidth: 100 }}>{b.lastUpdated ? new Date(b.lastUpdated).toLocaleString() : '-'}</div>
               <div style={{ flex: '1 1 140px', minWidth: 100, color: b.updateAvailable ? '#fa0' : '#6f6', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {b.updateAvailable ? (
-                  <>
-                    <span style={{ fontSize: '0.78em', background: '#d97706', color: '#fff', padding: '1px 5px', borderRadius: 3, fontWeight: 700 }}>
-                      UPDATE
-                    </span>
-                    <button
+                  <button
                       style={{
                         background: '#fa0',
                         color: '#222',
@@ -411,12 +386,11 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
                           setActionLoading(false);
                         });
                       }}
-                      title={`Update from build ${b.version || 'unknown'} to ${b.latestBuildId || 'latest'}`}
+                      title={`Update files from build ${b.version || 'unknown'} to ${b.latestBuildId || 'latest'}`}
                       disabled={!steamCmdDetected}
                     >
-                      Update
-                    </button>
-                  </>
+                      Update files
+                  </button>
                 ) : b.installAvailable ? (
                   <button
                     style={{
@@ -472,25 +446,6 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
         </div>
       )}
 
-      {/* Update Modal */}
-      {showUpdate && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#000a', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#23272e', color: '#eee', padding: 24, borderRadius: 8, minWidth: 320 }}>
-            <h3>Update Base Install</h3>
-            {formError && <div style={{ color: '#f66', marginBottom: 8 }}>{formError}</div>}
-            <div style={{ marginBottom: 12 }}>
-              <label>ID:<br /><input value={form.id || ''} onChange={e => setForm(f => ({ ...f, id: e.target.value }))} style={{ width: '100%' }} disabled /></label>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label>Path:<br /><input value={form.path || ''} onChange={e => setForm(f => ({ ...f, path: e.target.value }))} style={{ width: '100%' }} /></label>
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowUpdate(false)} disabled={false}>Cancel</button>
-              <button onClick={handleUpdateSubmit} disabled={!steamCmdDetected}>Update</button>
-            </div>
-          </div>
-        </div>
-      )}
       {showInstall && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#000a', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#23272e', color: '#eee', padding: 24, borderRadius: 8, minWidth: 320 }}>

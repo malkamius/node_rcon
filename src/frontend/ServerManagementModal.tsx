@@ -1,5 +1,6 @@
 import React from 'react';
 import { InstanceInstallModal, InstanceInstallParams } from './InstanceInstallModal';
+import { ModSelector } from './ModSelector';
 import {
   STANDARD_FLAGS,
   PRESET_MAPS,
@@ -944,6 +945,7 @@ export class ServerManagementModal extends React.Component<
                         onChange={this.handleChange}
                         style={inputStyle}
                       />
+                      <ModSelector value={launchSettings.modIds} onChange={(value) => this.handleLaunchSettingChange('modIds', value)} />
                     </div>
                     <div style={{ flex: '3 1 240px' }}>
                       <label style={labelStyle}>Instance Directory Path</label>

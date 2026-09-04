@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { PRESET_MAPS, mergeModIds } from './commandlineUtils';
+interface ModResult { id: string; name: string; author?: string; thumbnailUrl?: string; }
 
 interface BaseInstall {
   path: string;
@@ -25,6 +27,7 @@ export interface InstanceInstallParams {
   sessionName: string;
   adminPassword: string;
   serverPassword?: string;
+  modIds?: string;
 }
 
 export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
@@ -37,6 +40,13 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
   installing,
 }) => {
   const [submitting, setSubmitting] = useState(false);
+  const [modQuery, setModQuery] = useState('');
+  const [modResults, setModResults] = useState<ModResult[]>([]);
+  const [modPage, setModPage] = useState(1);
+  const [modHasMore, setModHasMore] = useState(false);
+  const [modLoading, setModLoading] = useState(false);
+  const [modError, setModError] = useState<string | null>(null);
+  const [modCache, setModCache] = useState<Record<string, ModResult[]>>({});
   const [form, setForm] = useState<InstanceInstallParams>({
     baseInstallPath: '',
     instanceDirectory: '',
@@ -47,9 +57,13 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
     sessionName: '',
     adminPassword: '',
     serverPassword: '',
+    modIds: '',
   });
 
   const isInstalling = Boolean(installing || submitting);
+  const selectedMap = PRESET_MAPS.some(m => m.id.toLowerCase() === form.mapName.toLowerCase())
+    ? form.mapName
+    : 'custom';
 
   useEffect(() => {
     if (!show || error) {
@@ -70,6 +84,23 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
       [name]: type === 'number' ? (value === '' ? '' : Number(value)) : value,
     }));
   };
+
+  const handleMapSelection = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value !== 'custom') {
+      setForm(f => ({ ...f, mapName: value }));
+    }
+  };
+  const searchMods = async (page = 1) => {
+    const query = modQuery.trim(); if (!query) return;
+    const key = `${query.toLowerCase()}:${page}`;
+    if (modCache[key]) { setModResults(page === 1 ? modCache[key] : [...modResults, ...modCache[key]]); setModPage(page); return; }
+    setModLoading(true); setModError(null);
+    try { const r = await fetch(`/api/mods/search?q=${encodeURIComponent(query)}&page=${page}&pageSize=12`); const b = await r.json(); if (!r.ok) throw new Error(b.error || 'Mod search failed'); setModResults(page === 1 ? b.results : [...modResults, ...b.results]); setModPage(page); setModHasMore(Boolean(b.hasMore)); setModCache(c => ({ ...c, [key]: b.results })); } catch (e: any) { setModError(e.message); } finally { setModLoading(false); }
+  };
+  const selectedIds = (form.modIds || '').split(/[;,\s]+/).filter(Boolean);
+  const addMod = (id: string) => setForm(f => ({ ...f, modIds: mergeModIds(f.modIds || '', [id]) }));
+  const removeMod = (id: string) => setForm(f => ({ ...f, modIds: (f.modIds || '').split(',').filter(v => v.toLowerCase() !== id.toLowerCase()).join(',') }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +149,15 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
             <input name="rconPort" type="number" value={form.rconPort ?? ''} onChange={handleChange} disabled={isInstalling} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
           <label>Map Name:
-            <input name="mapName" value={form.mapName} onChange={handleChange} disabled={isInstalling} placeholder="e.g. TheIsland_WP" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            <select value={selectedMap} onChange={handleMapSelection} disabled={isInstalling} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}}>
+              {PRESET_MAPS.map(m => (
+                <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
+              ))}
+              <option value="custom">Custom / Other Map...</option>
+            </select>
+            {selectedMap === 'custom' && (
+              <input name="mapName" value={form.mapName} onChange={handleChange} disabled={isInstalling} placeholder="e.g. Svartalfheim_WP" style={{width: '100%', marginTop: 6, padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            )}
           </label>
           <label>Session Name:
             <input name="sessionName" value={form.sessionName} onChange={handleChange} disabled={isInstalling} placeholder="e.g. My Ark Server" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
@@ -129,6 +168,17 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
           <label>Server Password (optional):
             <input name="serverPassword" value={form.serverPassword} onChange={handleChange} disabled={isInstalling} type="password" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
+          <label>Mod IDs (manual or selected):
+            <input name="modIds" value={form.modIds || ''} onChange={handleChange} disabled={isInstalling} placeholder="e.g. 928708,930389" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+          </label>
+          <div style={{border: '1px solid #444', padding: 10, borderRadius: 4}}><strong>Select Mods</strong>
+            <div style={{display: 'flex', gap: 6, marginTop: 6}}><input value={modQuery} onChange={e => setModQuery(e.target.value)} placeholder="Search by mod name or ID" style={{flex: 1}} /><button type="button" onClick={() => searchMods()} disabled={modLoading}>Search</button></div>
+            {selectedIds.length > 0 && <div style={{marginTop: 8}}>Selected: {selectedIds.map(id => <button type="button" key={id} onClick={() => removeMod(id)} style={{margin: 2}}>{id} ×</button>)}</div>}
+            {modLoading && <div style={{color: '#aaa'}}>Searching…</div>}{modError && <div style={{color: '#f88'}}>{modError} <button type="button" onClick={() => searchMods(modPage)}>Retry</button></div>}
+            {!modLoading && !modError && modQuery && !modResults.length && <div style={{color: '#aaa'}}>No mods found.</div>}
+            {modResults.map(m => <div key={m.id} style={{display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, background: '#181a20', padding: 6}}>{m.thumbnailUrl && <img src={m.thumbnailUrl} width="40" height="40" alt="" />}<span style={{flex: 1}}><b>{m.name}</b><br /><small>{m.id} · {m.author || 'Unknown author'}</small></span><button type="button" onClick={() => addMod(m.id)} disabled={selectedIds.some(id => id.toLowerCase() === m.id.toLowerCase())}>Add</button></div>)}
+            {modHasMore && <button type="button" onClick={() => searchMods(modPage + 1)} disabled={modLoading}>Load more</button>}
+          </div>
           <div style={{display: 'flex', gap: 8, marginTop: 8}}>
             <button type="submit" disabled={isInstalling} style={{flex: 1}}>
               {isInstalling ? 'Installing Instance...' : 'Install Instance'}
