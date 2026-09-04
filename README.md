@@ -116,6 +116,8 @@ The web UI requires authentication even when opened from `localhost`; localhost 
 
 The optional shared SSO UI/helper is maintained at [github.com/kbs-cloud/shared](https://github.com/kbs-cloud/shared). It is not required to build this project. To extend the built-in SSO redirect, clone, fork, or download that repository, then integrate the authentication helpers from its `auth` directory into the frontend as a separate optional step.
 
+SSO uses the deployed provider at [auth.kbs-cloud.com](https://auth.kbs-cloud.com), including when Node RCON is opened from localhost.
+
 ---
 
 ## Usage
