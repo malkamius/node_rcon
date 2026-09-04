@@ -11,7 +11,7 @@
     "postinstall": "cd elevated && npm install && npm run build && cd .. && powershell -NoProfile -ExecutionPolicy Bypass -File ./Register-AllTasks.ps1"
   },
   "dependencies": {
-    "@kbs-cloud/shared": "github:kbs-cloud/shared",
+    "@kbs-cloud/shared": "github:kbs-cloud/shared#b0ef37b",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "express": "^4.18.2",
