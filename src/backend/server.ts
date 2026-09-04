@@ -20,6 +20,8 @@ import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
 import { ensureSocketServer } from './adminSocketClient';
 import { exit } from 'process';
 import { exec, spawn } from 'child_process';
+import { createModsApi } from './modsApi';
+import { authMiddleware, registerAuth } from './auth';
 import {
   parseAcfBuildId,
   getAcfBuildIdFromDir,
@@ -47,6 +49,10 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 const app = express();
 export { app };
+app.use(express.json());
+registerAuth(app, config, configPath);
+app.use(authMiddleware(config));
+app.use(createModsApi(config));
 
 // --- Audit Logging Utility ---
 
@@ -874,8 +880,12 @@ function broadcast(type: string, payload: any) {
 // Store process statuses by key
 
 processManager.on('processStatus', (key: string, status: ProcessStatus) => {
-  processStatuses[key] = status;
-  broadcast('processStatus', { key, status });
+  // Polling emits lightweight updates such as `{ running: false }`. Keep
+  // the persisted manual-stop reason attached to every status update.
+  const profile = getProfiles().find((p: any) => `${p.host}:${p.port}` === key);
+  const enrichedStatus = { ...status, manuallyStopped: profile?.manuallyStopped === true };
+  processStatuses[key] = enrichedStatus;
+  broadcast('processStatus', { key, status: enrichedStatus });
 });
 
 processManager.on('serverCrash', (key: string, details: any) => {

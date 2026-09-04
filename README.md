@@ -110,6 +110,12 @@ The backend will start the web server and manage RCON connections.
 
 Visit [http://localhost:3000](http://localhost:3000) (or your configured host/port) in your browser.
 
+## Authentication
+
+The web UI requires authentication even when opened from `localhost`; localhost is not treated as an authentication bypass. The first SSO login becomes the administrator. Local accounts can be managed by an administrator through `POST/GET /api/auth/users`. If the web server is bound to `0.0.0.0` and no accounts exist, set the master password from the local machine using the setup screen or `POST /api/auth/master-password`; changes are loopback-only and require the current password once one is set.
+
+The optional shared SSO UI/helper is maintained at [github.com/kbs-cloud/shared](https://github.com/kbs-cloud/shared). It is not required to build this project. To extend the built-in SSO redirect, clone, fork, or download that repository, then integrate the authentication helpers from its `auth` directory into the frontend as a separate optional step.
+
 ---
 
 ## Usage
@@ -153,3 +159,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ![Screenshot](screenshot.jpg)
 ![Screenshot](screenshot2.jpg)
+### Mod selection
+
+The instance installer searches CurseForge for ARK: Survival Ascended mods through `/api/mods/search`. Set `curseForgeApiKey` in `config.json` or the `CURSEFORGE_API_KEY` environment variable to enable catalog search. Search is lazy and paginated; manual comma-separated IDs remain supported when no key is configured. Installed instances write `ark-launch-args.txt` containing the deduplicated `-mods` value and `-automanagedmods`.
