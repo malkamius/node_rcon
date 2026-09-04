@@ -46,6 +46,7 @@ This document outlines the requirements for implementing process management and 
 - **Frontend Controls**:
   - Add a right-click context menu to the server list (TabManager) with options to start/stop a server.
   - Support multi-select for servers. When multiple servers are selected, show a message in the RCON content window indicating that output and player lists are unavailable, but allow batch start/stop actions. Also allow commands to be sent to all selected servers
+    - [IMPLEMENTED] Multi-selection in TabManager with batch start/stop controls, informational notice banner and unavailable player list in RconClientWindow, and simultaneous RCON command broadcasting with multi-target ANSI formatted output.
   - Display server process status in the frontend. If RCON is disconnected but the process is running, show this status.
 
 ### 2. Base File Install Management

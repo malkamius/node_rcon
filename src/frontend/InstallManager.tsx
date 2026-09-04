@@ -40,7 +40,16 @@ export const InstallManager: React.FC<InstallManagerProps> = ({ ws, handleUpdate
       <h2>Server Management</h2>
       <SteamCmdManager ws={ws} />
       <BaseInstallManager ws={ws} steamCmdDetected={steamCmdDetected} handleUpdate={handleUpdateBaseInstallFiles} active={active} />
-      <InstanceManager ws={ws} baseInstalls={baseInstalls} steamCmdDetected={steamCmdDetected} />
+      <InstanceManager
+        ws={ws}
+        baseInstalls={baseInstalls}
+        steamCmdDetected={steamCmdDetected}
+        onInstanceInstalled={() => {
+          if (ws && ws.readyState === 1) {
+            ws.send(JSON.stringify({ type: 'getBaseInstalls', requestId: 'mgmt1' }));
+          }
+        }}
+      />
     </div>
   );
 };

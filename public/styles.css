@@ -3,15 +3,110 @@ div[style*="top: -50000px"] {
   width: 0 !important;
   overflow: hidden !important;
 }
-body {
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
   margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
   font-family: Arial, sans-serif;
   background: #181818;
   color: #eee;
+  overflow-x: hidden;
 }
+
 #app {
   height: 100vh;
   width: 100vw;
+  max-width: 100vw;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* Terminal wrapper touch and display styling */
+.terminal-wrapper {
+  position: relative;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Status indicator badge */
+.terminal-status-badge {
+  font-size: 14px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(24, 28, 32, 0.75);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  z-index: 5;
+  transition: font-size 0.2s ease, padding 0.2s ease;
+}
+
+/* Mobile & Tablet Responsive Media Query (<= 768px) */
+@media (max-width: 768px) {
+  /* Prevent horizontal overflow on mobile viewports */
+  html,
+  body,
+  #app {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Smooth touch momentum scrolling on #app and terminal wrappers */
+  #app,
+  .terminal-wrapper,
+  .xterm-viewport,
+  .xterm-screen {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  /* Remove 300ms tap delay and optimize touch responsiveness on interactive elements */
+  button,
+  input,
+  select,
+  textarea,
+  a,
+  [role="button"],
+  .interactive-element {
+    touch-action: manipulation;
+  }
+
+  /* Responsive compact status indicator badge on narrow viewports */
+  .terminal-status-badge {
+    font-size: 11px !important;
+    padding: 2px 5px !important;
+    top: 4px !important;
+    right: 8px !important;
+  }
+
+  /* Mobile drawer and sidebar transition support */
+  .drawer,
+  .mobile-drawer,
+  .sidebar-drawer {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    will-change: transform;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .drawer-open,
+  .mobile-drawer-open {
+    transform: translateX(0);
+  }
+
+  .drawer-closed,
+  .mobile-drawer-closed {
+    transform: translateX(-100%);
+  }
+
+  .drawer-overlay {
+    transition: opacity 0.3s ease;
+    touch-action: none;
+  }
 }

@@ -28,6 +28,11 @@ export function setProfileChangedEvent(fn: typeof profilesChangedEvent) {
   profilesChangedEvent = fn;
 }
 
+let configWatcherInstance: { markLastKnownConfig?: (cfg: any) => void; markLastKnownProfiles?: (profs: any[]) => void } | null = null;
+export function setConfigWatcher(watcher: typeof configWatcherInstance) {
+  configWatcherInstance = watcher;
+}
+
 export function saveProfiles(profiles: any[]) {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   const oldProfiles = config.profiles || [];
@@ -54,6 +59,10 @@ export function saveProfiles(profiles: any[]) {
 
   config.profiles = profiles;
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  if (configWatcherInstance) {
+    configWatcherInstance.markLastKnownConfig?.(config);
+    configWatcherInstance.markLastKnownProfiles?.(profiles);
+  }
 
   // Emit to frontend if broadcast is set
   if (profilesChangedEvent && changedKeys.length > 0) {

@@ -9,8 +9,93 @@ function getDriveLetter(p: string) {
   return match ? match[1].toUpperCase() : '';
 }
 
+function updateGameUserSettings(
+  filePath: string,
+  settings: Record<string, string | number>
+) {
+  let lines: string[] = [];
+  if (fs.existsSync(filePath)) {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    lines = raw.split(/\r?\n/);
+  }
+
+  // Find [ServerSettings] section
+  let serverSettingsIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().toLowerCase() === '[serversettings]') {
+      serverSettingsIndex = i;
+      break;
+    }
+  }
+
+  const keysToSet = { ...settings };
+  const updatedKeys = new Set<string>();
+
+  if (serverSettingsIndex !== -1) {
+    // Find where [ServerSettings] section ends (next section header or end of file)
+    let nextSectionIndex = lines.length;
+    for (let i = serverSettingsIndex + 1; i < lines.length; i++) {
+      if (/^\s*\[.+\]/.test(lines[i].trim())) {
+        nextSectionIndex = i;
+        break;
+      }
+    }
+
+    // Update existing keys in [ServerSettings]
+    for (let i = serverSettingsIndex + 1; i < nextSectionIndex; i++) {
+      const match = lines[i].match(/^\s*([^=]+?)\s*=/);
+      if (match) {
+        const existingKey = match[1].trim();
+        for (const [targetKey, targetVal] of Object.entries(keysToSet)) {
+          if (existingKey.toLowerCase() === targetKey.toLowerCase()) {
+            lines[i] = `${targetKey}=${targetVal}`;
+            updatedKeys.add(targetKey);
+            break;
+          }
+        }
+      }
+    }
+
+    // Insert any missing keys before the next section
+    const missingLines: string[] = [];
+    for (const [targetKey, targetVal] of Object.entries(keysToSet)) {
+      if (!updatedKeys.has(targetKey)) {
+        missingLines.push(`${targetKey}=${targetVal}`);
+      }
+    }
+    if (missingLines.length > 0) {
+      lines.splice(nextSectionIndex, 0, ...missingLines);
+    }
+  } else {
+    // [ServerSettings] does not exist in file, add it
+    if (lines.length > 0 && lines[lines.length - 1].trim() !== '') {
+      lines.push('');
+    }
+    lines.push('[ServerSettings]');
+    for (const [targetKey, targetVal] of Object.entries(keysToSet)) {
+      lines.push(`${targetKey}=${targetVal}`);
+    }
+  }
+
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+    lines.pop();
+  }
+  lines.push('');
+
+  fs.writeFileSync(filePath, lines.join('\r\n'), 'utf-8');
+}
+
 export const installInstanceHandler: HandlerFn = async (params) => {
-  const { baseInstallPath, instanceDirectory, linkType = 'Junction' } = params;
+  const {
+    baseInstallPath,
+    instanceDirectory,
+    linkType = 'Junction',
+    rconPort,
+    queryPort,
+    gamePort,
+    adminPassword,
+    serverPassword
+  } = params;
   if (!baseInstallPath || !instanceDirectory) {
     throw new Error('baseInstallPath and instanceDirectory are required');
   }
@@ -119,6 +204,27 @@ export const installInstanceHandler: HandlerFn = async (params) => {
         ensureDirSync(realFolderPath);
       }
     }
+  }
+
+  // Ensure config files exist and are configured
+  const configDir = path.join(instanceSavedPath, 'Config', 'WindowsServer');
+  ensureDirSync(configDir);
+
+  const effectiveRconPort = rconPort || queryPort || 27020;
+  const gusSettings: Record<string, string | number> = {
+    RCONEnabled: 'True',
+    RCONPort: effectiveRconPort,
+    ServerAdminPassword: adminPassword || ''
+  };
+  if (serverPassword !== undefined && serverPassword !== null && serverPassword !== '') {
+    gusSettings.ServerPassword = serverPassword;
+  }
+  const gusPath = path.join(configDir, 'GameUserSettings.ini');
+  updateGameUserSettings(gusPath, gusSettings);
+
+  const gameIniPath = path.join(configDir, 'Game.ini');
+  if (!fs.existsSync(gameIniPath)) {
+    fs.writeFileSync(gameIniPath, '[/Script/ShooterGame.ShooterGameMode]\n', 'utf-8');
   }
 
   return `SUCCESS: Ark Ascended server instance created successfully at '${instanceDirectory}'!\nUnique config files are located in: '${instanceDirectory}\\ShooterGame\\Saved\\Config\\WindowsServer'`;

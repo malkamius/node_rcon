@@ -47,6 +47,7 @@ export class RconManager extends EventEmitter {
   private connections: Map<string, ConnectionState> = new Map();
   private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private chatIntervals: Map<string, NodeJS.Timeout> = new Map();
   private disconnectedSince: Map<string, number> = new Map();
 
   // Per-profile mutexes
@@ -111,6 +112,10 @@ export class RconManager extends EventEmitter {
           clearInterval(this.pollingIntervals.get(oldKey));
           this.pollingIntervals.delete(oldKey);
         }
+        if (this.chatIntervals.has(oldKey)) {
+          clearInterval(this.chatIntervals.get(oldKey));
+          this.chatIntervals.delete(oldKey);
+        }
         if (this.reconnectTimers.has(oldKey)) {
           clearInterval(this.reconnectTimers.get(oldKey));
           this.reconnectTimers.delete(oldKey);
@@ -146,6 +151,10 @@ export class RconManager extends EventEmitter {
       clearInterval(this.pollingIntervals.get(key));
       this.pollingIntervals.delete(key);
     }
+    if (this.chatIntervals.has(key)) {
+      clearInterval(this.chatIntervals.get(key));
+      this.chatIntervals.delete(key);
+    }
 
     // --- Current Players Polling ---
     if (
@@ -167,7 +176,11 @@ export class RconManager extends EventEmitter {
           }
         }
       };
-      this.pollingIntervals.set(key, setInterval(pollPlayers, interval * 1000));
+      const playerTimer = setInterval(pollPlayers, interval * 1000);
+      if (playerTimer && typeof playerTimer.unref === 'function') {
+        playerTimer.unref();
+      }
+      this.pollingIntervals.set(key, playerTimer);
       // Fire immediately
       pollPlayers();
     }
@@ -195,7 +208,11 @@ export class RconManager extends EventEmitter {
         }
       };
       // Use a separate interval for chat polling
-      setInterval(pollChat, chatInterval * 1000);
+      const chatTimer = setInterval(pollChat, chatInterval * 1000);
+      if (chatTimer && typeof chatTimer.unref === 'function') {
+        chatTimer.unref();
+      }
+      this.chatIntervals.set(key, chatTimer);
     }
   }
 
@@ -278,6 +295,9 @@ export class RconManager extends EventEmitter {
       // Attempt reconnect every 5 seconds
       if (!this.reconnectTimers.has(key)) {
         const timer = setInterval(() => this.connect(profile), 5000);
+        if (timer && typeof timer.unref === 'function') {
+          timer.unref();
+        }
         this.reconnectTimers.set(key, timer);
       }
     } finally {

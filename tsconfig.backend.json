@@ -9,5 +9,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/backend/**/*"]
+  "include": ["src/backend/**/*"],
+  "exclude": ["src/backend/__tests__/**/*"]
 }

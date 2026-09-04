@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { InstanceInstallModal, InstanceInstallParams } from './InstanceInstallModal';
 
 interface BaseInstall {
   id: string;
@@ -8,165 +9,131 @@ interface BaseInstall {
 interface InstanceManagerProps {
   ws: WebSocket | null;
   baseInstalls: BaseInstall[];
-  steamCmdDetected: boolean;
+  steamCmdDetected?: boolean;
+  onInstanceInstalled?: () => void;
 }
 
-
-export const InstanceManager: React.FC<InstanceManagerProps> = ({ ws, baseInstalls, steamCmdDetected }) => {
-  const [selectedBase, setSelectedBase] = useState<string>('');
-  const [instancePath, setInstancePath] = useState('');
-  const [queryPort, setQueryPort] = useState<number>(27020);
-  const [gamePort, setGamePort] = useState<number>(7777);
-  const [mapName, setMapName] = useState<string>('TheIsland');
-  const [sessionName, setSessionName] = useState<string>('');
-  const [adminPassword, setAdminPassword] = useState<string>('');
-  const [serverPassword, setServerPassword] = useState<string>('');
+export const InstanceManager: React.FC<InstanceManagerProps> = ({
+  ws,
+  baseInstalls,
+  steamCmdDetected = true,
+  onInstanceInstalled,
+}) => {
+  const [showModal, setShowModal] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [installing, setInstalling] = useState(false);
 
-  const handleInstall = () => {
-    setError(null);
-    setSuccess(null);
-    if (!selectedBase || !instancePath || !queryPort || !gamePort || !mapName || !sessionName || !adminPassword) {
-      setError('Please fill in all required fields.');
+  const handleInstall = (params: InstanceInstallParams) => {
+    if (!ws || ws.readyState !== 1) {
+      setError('WebSocket not connected');
       return;
     }
+    setError(null);
+    setSuccess(null);
     setInstalling(true);
-    ws?.send(JSON.stringify({
-      type: 'installInstance',
-      baseInstallPath: baseInstalls.find(b => b.id === selectedBase)?.path,
-      instanceDirectory: instancePath,
-      queryPort,
-      gamePort,
-      mapName,
-      sessionName,
-      adminPassword,
-      serverPassword,
-      requestId: 'instance1',
-    }));
-  };
+    const requestId = 'inst_' + Math.random().toString(36).slice(2);
 
-  useEffect(() => {
-    if (!ws) return;
     const handleMessage = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'installInstance' && msg.requestId === 'instance1') {
+        if (msg.type === 'installInstance' && msg.requestId === requestId) {
+          ws.removeEventListener('message', handleMessage);
           setInstalling(false);
-          if (msg.ok) {
-            setSuccess('Instance installed successfully.');
+          if (msg.error) {
+            setError(msg.error);
           } else {
-            setError(msg.error || 'Failed to install instance.');
+            // Create and save new profile
+            const newProfile = {
+              name: params.sessionName,
+              host: '127.0.0.1',
+              port: params.rconPort || 27020,
+              password: params.adminPassword,
+              game: 'ark_sa',
+              directory: params.instanceDirectory,
+              features: {
+                currentPlayers: {
+                  enabled: true,
+                  updateInterval: 10,
+                },
+              },
+            };
+
+            const profReqId = 'prof_' + Math.random().toString(36).slice(2);
+            const profHandler = (pEvent: MessageEvent) => {
+              try {
+                const pMsg = JSON.parse(pEvent.data);
+                if (pMsg.type === 'getProfiles' && pMsg.requestId === profReqId) {
+                  ws.removeEventListener('message', profHandler);
+                  const currentProfiles = pMsg.profiles || [];
+                  ws.send(JSON.stringify({
+                    type: 'saveProfiles',
+                    profiles: [...currentProfiles, newProfile],
+                  }));
+                }
+              } catch {}
+            };
+            ws.addEventListener('message', profHandler);
+            ws.send(JSON.stringify({ type: 'getProfiles', requestId: profReqId }));
+
+            setSuccess('Instance installed successfully.');
+            setShowModal(false);
+            if (onInstanceInstalled) {
+              onInstanceInstalled();
+            }
           }
         }
       } catch {}
     };
+
     ws.addEventListener('message', handleMessage);
-    return () => ws.removeEventListener('message', handleMessage);
-  }, [ws]);
+    ws.send(JSON.stringify({
+      type: 'installInstance',
+      ...params,
+      rconPort: params.rconPort || 27020,
+      requestId,
+    }));
+  };
 
   return (
     <div style={{ marginBottom: 24, background: '#23272e', padding: 16, borderRadius: 8, maxWidth: 500 }}>
-      <h3>Instance Management</h3>
-      <div style={{ marginBottom: 8 }}>
-        <label>Base Install:
-          <select
-            value={selectedBase}
-            onChange={e => setSelectedBase(e.target.value)}
-            disabled={!baseInstalls.length || !steamCmdDetected}
-            style={{ marginLeft: 8 }}
-          >
-            <option value="">-- Select --</option>
-            {baseInstalls.map(b => (
-              <option key={b.id} value={b.id}>{b.id} ({b.path})</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Instance Path:
-          <input
-            value={instancePath}
-            onChange={e => setInstancePath(e.target.value)}
-            disabled={!baseInstalls.length || !steamCmdDetected}
-            style={{ marginLeft: 8, width: 200 }}
-          />
-        </label>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Query Port:
-          <input
-            type="number"
-            value={queryPort}
-            onChange={e => setQueryPort(Number(e.target.value))}
-            disabled={!baseInstalls.length || !steamCmdDetected}
-            style={{ marginLeft: 8, width: 120 }}
-          />
-        </label>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Game Port:
-          <input
-            type="number"
-            value={gamePort}
-            onChange={e => setGamePort(Number(e.target.value))}
-            disabled={!baseInstalls.length || !steamCmdDetected}
-            style={{ marginLeft: 8, width: 120 }}
-          />
-        </label>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Map Name:
-          <input
-            value={mapName}
-            onChange={e => setMapName(e.target.value)}
-            disabled={!baseInstalls.length || !steamCmdDetected}
-            style={{ marginLeft: 8, width: 180 }}
-          />
-        </label>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Session Name:
-          <input
-            value={sessionName}
-            onChange={e => setSessionName(e.target.value)}
-            disabled={!baseInstalls.length || !steamCmdDetected}
-            style={{ marginLeft: 8, width: 180 }}
-          />
-        </label>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Admin Password:
-          <input
-            type="password"
-            value={adminPassword}
-            onChange={e => setAdminPassword(e.target.value)}
-            disabled={!baseInstalls.length || !steamCmdDetected}
-            style={{ marginLeft: 8, width: 180 }}
-          />
-        </label>
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <label>Server Password (optional):
-          <input
-            type="password"
-            value={serverPassword}
-            onChange={e => setServerPassword(e.target.value)}
-            disabled={!baseInstalls.length || !steamCmdDetected}
-            style={{ marginLeft: 8, width: 180 }}
-          />
-        </label>
-      </div>
+      <h3 style={{ marginTop: 0 }}>Instance Management</h3>
+      <p style={{ color: '#aaa', fontSize: '0.9em' }}>
+        Create a new server instance linked to an existing base install.
+      </p>
       <button
-        onClick={handleInstall}
-        disabled={!baseInstalls.length || !steamCmdDetected || installing}
-        style={{ marginTop: 8 }}
+        onClick={() => {
+          setError(null);
+          setSuccess(null);
+          setShowModal(true);
+        }}
+        disabled={!baseInstalls.length || steamCmdDetected === false}
+        style={{ padding: '8px 16px', cursor: 'pointer' }}
       >
-        {installing ? 'Installing...' : 'Install Instance'}
+        Install New Instance
       </button>
+      {(!baseInstalls.length || steamCmdDetected === false) && (
+        <div style={{ color: '#aaa', fontSize: '0.85em', marginTop: 8 }}>
+          {!steamCmdDetected ? 'SteamCMD must be detected.' : 'At least one base install is required.'}
+        </div>
+      )}
       {error && <div style={{ color: '#f66', marginTop: 8 }}>{error}</div>}
       {success && <div style={{ color: '#6f6', marginTop: 8 }}>{success}</div>}
+
+      <InstanceInstallModal
+        show={showModal}
+        onClose={() => {
+          if (!installing) {
+            setShowModal(false);
+            setError(null);
+          }
+        }}
+        baseInstalls={baseInstalls}
+        onInstall={handleInstall}
+        error={error}
+        clearError={() => setError(null)}
+        installing={installing}
+      />
     </div>
   );
 };

@@ -24,7 +24,14 @@ Right now we are focusing on ARK Survival Ascended
 - **Live Player List**: See current players (for ARK SE/SA) with live updates.
 - **Chat Integration**: View in-game chat in real time.
 - **Server Management**: Add/edit/remove servers.
-- **Local Server Settings**: Edit basic settings(Game/GameUserSettings) of the dedicated server if running on the same box
+- **Local Server Settings**: Edit basic settings(Game/GameUserSettings) of the dedicated server if running on the same box.
+- **Hot Reload Config**: Watches `config.json` on disk with debouncing, automatically updating profiles and broadcasting changes via WebSockets without restarting the backend.
+- **Multi-Server Command Broadcasting**: Dispatch RCON commands simultaneously across multiple selected servers with aggregate ANSI-formatted terminal feedback.
+- **Deep URL Routing & Server Bookmarks**: Direct URL hash navigation to specific servers and dedicated reconnect modal dialogs.
+- **Automated Base Install & Steam Update Detection**: Background polling and notifications when new server build IDs are released.
+- **INI Revision History & Safe Backups**: Historical snapshot management, preview diffs, and one-click configuration restore.
+- **Live Crash & Engine Log Viewer**: Tail and search `ShooterGame.log` and crash dumps directly in the UI.
+- **RCON Script Engine & Templates**: Create, save, and execute multi-step RCON maintenance routines with variable interpolation.
 
 ---
 

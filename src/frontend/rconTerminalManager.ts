@@ -160,6 +160,91 @@ export class RconTerminalManager {
       this.wsRequest(ws, { type: 'clearSessionLines', key }, () => {});
     }
   }
-// --- WebSocket request/response utility (copy from ServerManagerPage) ---
-   
+
+  formatBroadcastResult(
+    command: string,
+    results: BroadcastResultItem[],
+    serverProfiles: BroadcastProfileInfo[] = []
+  ) {
+    return formatBroadcastResult(command, results, serverProfiles);
+  }
+}
+
+export interface BroadcastResultItem {
+  key: string;
+  output: string;
+  status?: string;
+  serverName?: string;
+}
+
+export interface BroadcastProfileInfo {
+  host: string;
+  port: number;
+  name?: string;
+}
+
+export interface ConnectionSummary {
+  connected: number;
+  disconnected: number;
+  total: number;
+  text: string;
+}
+
+/**
+ * Calculates a multi-server connection summary from server keys and an RCON status map.
+ */
+export function getConnectionSummary(
+  keys: string[],
+  rconStatusMap: Record<string, { status?: string } | undefined> = {}
+): ConnectionSummary {
+  let connected = 0;
+  let disconnected = 0;
+  for (const key of keys) {
+    const status = rconStatusMap[key]?.status;
+    if (status === 'connected') {
+      connected++;
+    } else {
+      disconnected++;
+    }
+  }
+  return {
+    connected,
+    disconnected,
+    total: keys.length,
+    text: `${connected} Connected, ${disconnected} Disconnected`,
+  };
+}
+
+export const calculateConnectionSummary = getConnectionSummary;
+
+/**
+ * Formats multi-server broadcast command results into ANSI lines for terminal display.
+ */
+export function formatBroadcastResult(
+  command: string,
+  results: BroadcastResultItem[],
+  serverProfiles: BroadcastProfileInfo[] = []
+): string[] {
+  const lines: string[] = [`\x1b[1;36m[BROADCAST]\x1b[0m > ${command}`];
+  for (const result of results) {
+    const profile = serverProfiles.find((p) => `${p.host}:${p.port}` === result.key);
+    const serverLabel = result.serverName || profile?.name || result.key;
+    const output = result.output || '';
+    const status = result.status;
+    const isSuccess =
+      status === 'connected' ||
+      (status === 'success' ||
+        (status !== 'error' &&
+          status !== 'disconnected' &&
+          status !== 'failed' &&
+          !output.startsWith('[RCON ERROR]') &&
+          output !== '[RCON] Not connected'));
+
+    if (isSuccess) {
+      lines.push(`\x1b[1;32m[${serverLabel} (${result.key})]\x1b[0m ${output}`);
+    } else {
+      lines.push(`\x1b[1;31m[${serverLabel} (${result.key})]\x1b[0m ${output}`);
+    }
+  }
+  return lines;
 }
