@@ -17,8 +17,10 @@ export class BaseInstallHandler {
       const {
         baseInstallPath,
         instanceDirectory,
+        linkType,
         queryPort,
         gamePort,
+        rconPort,
         mapName,
         sessionName,
         adminPassword,
@@ -28,25 +30,108 @@ export class BaseInstallHandler {
         ws.send(JSON.stringify({ type: 'installInstance', error: 'Missing required parameters', requestId: msg.requestId }));
         return;
       }
-      // Use the new elevated service endpoint
+      // Use the elevated service endpoint
       try {
         const params = {
           baseInstallPath,
-          instanceDirectory
+          instanceDirectory,
+          linkType,
+          queryPort,
+          gamePort,
+          rconPort,
+          mapName,
+          sessionName,
+          adminPassword,
+          serverPassword
         };
         const output = await sendElevatedCommand('InstallInstance', params);
-        ws.send(JSON.stringify({ type: 'installInstance', ok: true, output, requestId: msg.requestId }));
+
+        const effectiveRconPort = Number(rconPort || queryPort || 27020);
+        const effectiveQueryPort = queryPort;
+        const effectiveGamePort = gamePort;
+        const mapArg = mapName.includes('_WP') ? mapName : `${mapName}_WP`;
+
+        const parsedCommandline = [
+          `${mapArg}?listen?SessionName="${sessionName}"?QueryPort=${effectiveQueryPort}?MaxPlayers=100?AllowCrateSpawnsOnTopOfStructures=True${serverPassword ? `?ServerPassword=${serverPassword}` : ''}`,
+          `ServerAdminPassword=${adminPassword}`,
+          `Port=${effectiveGamePort}`,
+          '-ForceAllowCaveFlyers',
+          '-NoBattlEye',
+          '-servergamelog',
+          '-severgamelogincludetribelogs',
+          '-ServerRCONOutputTribeLogs',
+          '-NotifyAdminCommandsInChat',
+          '-nosteamclient',
+          '-game',
+          '-server',
+          '-log',
+          '-crossplay',
+          '-noundermeshchecking',
+          '-noantispeedhack',
+          '-automanagedmods',
+          '-ServerPlatform=ALL'
+        ];
+
+        const newProfile = {
+          name: sessionName,
+          host: '127.0.0.1',
+          port: effectiveRconPort,
+          password: adminPassword,
+          game: 'ark_sa',
+          features: {
+            currentPlayers: {
+              enabled: true,
+              updateInterval: 10
+            }
+          },
+          autoStart: false,
+          directory: instanceDirectory,
+          parsedCommandline,
+          manuallyStopped: true
+        };
+
+        const profiles = this.context.getProfiles ? this.context.getProfiles() : (this.context.config?.profiles || []);
+        const profileKey = `${newProfile.host}:${newProfile.port}`;
+        const existingIdx = profiles.findIndex((p: any) => `${p.host}:${p.port}` === profileKey);
+        if (existingIdx !== -1) {
+          profiles[existingIdx] = newProfile;
+        } else {
+          profiles.push(newProfile);
+        }
+
+        if (this.context.saveProfiles) {
+          this.context.saveProfiles(profiles);
+        }
+        if (this.context.config) {
+          this.context.config.profiles = profiles;
+        }
+        if (this.context.auditLog) {
+          this.context.auditLog('installInstance', { name: sessionName, directory: instanceDirectory, port: effectiveRconPort });
+        }
+
+        ws.send(JSON.stringify({ type: 'installInstance', ok: true, output, newProfile, requestId: msg.requestId }));
       } catch (err: any) {
         ws.send(JSON.stringify({ type: 'installInstance', error: String(err), requestId: msg.requestId }));
       }
     },
     getBaseInstalls: async (ws: WebSocket, msg: any) => {
-      const { config } = this.context;
-      if(config.checkBaseInstallUpdates)
-      {
+      const { config, checkBaseInstallUpdates } = this.context;
+      if (checkBaseInstallUpdates) {
+        await checkBaseInstallUpdates(false);
+      } else if (config?.checkBaseInstallUpdates) {
         await config.checkBaseInstallUpdates();
       }
       ws.send(JSON.stringify({ type: 'baseInstalls', baseInstalls: config.baseInstalls || [], requestId: msg.requestId }));
+    },
+    checkUpdates: async (ws: WebSocket, msg: any) => {
+      const { config, checkBaseInstallUpdates } = this.context;
+      let result = null;
+      if (checkBaseInstallUpdates) {
+        result = await checkBaseInstallUpdates(true);
+      } else if (config?.checkBaseInstallUpdates) {
+        result = await config.checkBaseInstallUpdates();
+      }
+      ws.send(JSON.stringify({ type: 'checkUpdatesResult', ok: true, baseInstalls: config.baseInstalls || [], result, requestId: msg.requestId }));
     },
     addBaseInstall: async (ws: WebSocket, msg: any) => {
       const { config, fs, configPath, auditLog, broadcast } = this.context;
@@ -115,7 +200,18 @@ export class BaseInstallHandler {
       const fs = require('fs');
       const path = require('path');
 
-      const affectedProfiles = profiles.filter((p: any) => p.directory === baseInstallPath || realpathSync(p.directory) === realpathSync(baseInstallPath));
+      if (!baseInstallPath || !existsSync(baseInstallPath)) {
+        const error = 'Base install path does not exist';
+        ws.send(JSON.stringify({ type: 'updateSteamGame', ok: false, error, requestId: msg.requestId }));
+        if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'error', baseInstallPath, output: error });
+        return;
+      }
+
+      const affectedProfiles = profiles.filter((p: any) => {
+        try {
+          return p.directory === baseInstallPath || (existsSync(p.directory) && realpathSync(p.directory) === realpathSync(baseInstallPath));
+        } catch { return false; }
+      });
       const pty = require('@homebridge/node-pty-prebuilt-multiarch');
       
       if (affectedProfiles.length > 0) {
@@ -131,7 +227,11 @@ export class BaseInstallHandler {
       const logFile = path.join(baseInstallPath, `steamcmd_update_${Date.now()}.log`);
       try {
         const steamCmdExe = path.join(this.context.config.steamCmdPath || "", 'steamcmd.exe');
+        if (!existsSync(steamCmdExe)) {
+          throw new Error(`SteamCMD executable not found at '${steamCmdExe}'`);
+        }
         const args = ['+force_install_dir', baseInstallPath, '+login', 'anonymous', '+app_update', '2430930', 'validate', '+quit'];
+        console.log(`[SteamCMD] launching '${steamCmdExe}' in '${baseInstallPath}'`, args);
         const ptyProcess = pty.spawn(steamCmdExe, args, {
           name: 'xterm-color',
           cols: 80,
@@ -140,16 +240,25 @@ export class BaseInstallHandler {
           env: process.env,
           useConpty: false
         });
+        // Acknowledge launch separately; progress and exit are broadcast asynchronously.
+        ws.send(JSON.stringify({ type: 'updateSteamGame', ok: true, started: true, requestId: msg.requestId }));
         ptyProcess.on('data', (data: string) => {
+          console.log(`[SteamCMD] ${data}`);
           if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'progress', baseInstallPath, output: data });
           process.stdout.write(data);
           //fs.appendFileSync(logFile, data);
         });
         ptyProcess.on('exit', (code: number, signal: number) => {
+          console.log(`[SteamCMD] exited with code ${code}${signal ? `, signal ${signal}` : ''}`);
           if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'done', baseInstallPath, code, signal });
+          // Re-read the manifest and broadcast the row-level change without a page reload.
+          if (this.context.checkBaseInstallUpdates) {
+            void this.context.checkBaseInstallUpdates(false);
+          }
           //fs.appendFileSync(logFile, `\nProcess exited with code ${code} and signal ${signal}\n`);
         });
       } catch (err) {
+        ws.send(JSON.stringify({ type: 'updateSteamGame', ok: false, error: String(err), requestId: msg.requestId }));
         if (this.broadcast) this.broadcast('steamUpdateProgress', { status: 'error', baseInstallPath, output: String(err) });
         return;
       }

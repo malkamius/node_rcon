@@ -120,11 +120,10 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
       try {
         const msg = JSON.parse(event.data);
         if (msg && msg.requestId && pendingRequests.current[msg.requestId]) {
-          // Only remove handler for error/done
-          if ((msg.status && (msg.status === 'done' || msg.status === 'error')) || msg.error) {
-            pendingRequests.current[msg.requestId](msg);
-            delete pendingRequests.current[msg.requestId];
-          }
+          // Request responses are one-shot. Streaming progress messages do not carry
+          // requestId, so they continue through the progress handler below.
+          pendingRequests.current[msg.requestId](msg);
+          delete pendingRequests.current[msg.requestId];
         }
         // Always process baseInstalls and baseInstallsUpdated
         if (msg.type === 'baseInstalls' || msg.type === 'baseInstallsUpdated') {
@@ -175,14 +174,17 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
       setError('WebSocket not connected');
       return;
     }
+    setError(null);
     const requestId = 'req' + (requestIdCounter.current++);
     const msg = { ...payload, requestId };
     if (cb) pendingRequests.current[requestId] = cb;
     ws.send(JSON.stringify(msg));
   }
 
-  const loadBaseInstalls = () => {
-    setLoading(true);
+  const loadBaseInstalls = (showLoading = false) => {
+    if (!ws || ws.readyState !== 1) return;
+    // Polling is an incremental refresh; do not blank/redraw the manager while it runs.
+    if (showLoading) setLoading(true);
     sendWS({ type: 'getBaseInstalls' }, (data) => {
       mergeBaseInstalls(data.baseInstalls || []);
       setLoading(false);
@@ -194,22 +196,37 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
   // Initial load and poll when active
   useEffect(() => {
     let poller: NodeJS.Timeout | undefined;
-    if (ws && ws.readyState === 1 && active) {
-      loadBaseInstalls();
-      poller = setInterval(loadBaseInstalls, 10000);
+    if (!ws || !active) return;
+
+    const onOpen = () => {
+      loadBaseInstalls(true);
+    };
+
+    if (ws.readyState === 1) {
+      loadBaseInstalls(true);
+    } else if (ws.readyState === 0) {
+      ws.addEventListener('open', onOpen);
     }
+
+    poller = setInterval(() => {
+      if (ws && ws.readyState === 1 && active) {
+        loadBaseInstalls();
+      }
+    }, 10000);
+
     return () => {
       if (poller) clearInterval(poller);
+      ws.removeEventListener('open', onOpen);
     };
   }, [ws, active]);
 
   // Refresh when tab becomes active
   useEffect(() => {
-    if (active && !prevActiveRef.current) {
-      loadBaseInstalls();
+    if (active && !prevActiveRef.current && ws && ws.readyState === 1) {
+      loadBaseInstalls(true);
     }
     prevActiveRef.current = active;
-  }, [active]);
+  }, [active, ws]);
 
   const handleSelect = (id: string) => setSelectedId(id === selectedId ? null : id);
 
@@ -236,7 +253,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
         setFormError(res.error || 'Failed to add base install');
       } else {
         setShowAdd(false);
-        loadBaseInstalls();
+        loadBaseInstalls(true);
       }
       setActionLoading(false);
     });
@@ -298,6 +315,19 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
     });
   };
 
+  const handleCheckUpdates = () => {
+    setActionLoading(true);
+    setError(null);
+    sendWS({ type: 'checkUpdates' }, (res) => {
+      setActionLoading(false);
+      if (res && res.baseInstalls) {
+        mergeBaseInstalls(res.baseInstalls);
+      } else {
+        loadBaseInstalls();
+      }
+    });
+  };
+
   return (
     <div style={{ padding: 16, background: '#23272e', borderRadius: 8, marginBottom: 24 }}>
       <h3>Base Install Management</h3>
@@ -306,6 +336,9 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
         <button onClick={handleAdd} disabled={!steamCmdDetected}>Add Base Install</button>
         <button onClick={handleRemove} disabled={!selectedId || !steamCmdDetected}>Remove Selected</button>
+        <button onClick={handleCheckUpdates} disabled={actionLoading} style={{ background: '#30363d', color: '#58a6ff', border: '1px solid #388bfd' }}>
+          🔄 Check for Updates
+        </button>
       </div>
       <div style={{ width: '100%', background: '#23272e', color: '#eee', borderRadius: 4, overflow: 'hidden' }}>
         <div style={{ display: 'flex', fontWeight: 600, borderBottom: '2px solid #333', padding: '8px 0', textAlign: 'left' }}>
@@ -314,7 +347,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
           <div style={{ flex: '2 1 200px', minWidth: 120 }}>Path</div>
           <div style={{ flex: '1 1 80px', minWidth: 60 }}>Version</div>
           <div style={{ flex: '1 1 140px', minWidth: 100 }}>Last Updated</div>
-          <div style={{ flex: '1 1 120px', minWidth: 80 }}>Update Available</div>
+          <div style={{ flex: '1 1 140px', minWidth: 100 }}>Update Available</div>
           <div style={{ flex: '1 1 160px', minWidth: 120 }}>Progress</div>
           <div style={{ flex: '1 1 100px', minWidth: 80 }}>Latest Build</div>
         </div>
@@ -353,31 +386,37 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
               <div style={{ flex: '2 1 200px', minWidth: 120, wordBreak: 'break-all' }}>{b.path}</div>
               <div style={{ flex: '1 1 80px', minWidth: 60 }}>{b.version || '-'}</div>
               <div style={{ flex: '1 1 140px', minWidth: 100 }}>{b.lastUpdated ? new Date(b.lastUpdated).toLocaleString() : '-'}</div>
-              <div style={{ flex: '1 1 120px', minWidth: 80, color: b.updateAvailable ? '#fa0' : '#6f6' }}>
+              <div style={{ flex: '1 1 140px', minWidth: 100, color: b.updateAvailable ? '#fa0' : '#6f6', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {b.updateAvailable ? (
-                  <button
-                    style={{
-                      background: '#fa0',
-                      color: '#222',
-                      border: 'none',
-                      borderRadius: 4,
-                      padding: '2px 10px',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                    }}
-                    onClick={e => {
-                      e.stopPropagation();
-                      setActionLoading(true);
-                      setError(null);
-                      sendWS({ type: 'updateSteamGame', path: b.path }, () => {
-                        setActionLoading(false);
-                      });
-                    }}
-                    title="Update base install"
-                    disabled={!steamCmdDetected}
-                  >
-                    Yes
-                  </button>
+                  <>
+                    <span style={{ fontSize: '0.78em', background: '#d97706', color: '#fff', padding: '1px 5px', borderRadius: 3, fontWeight: 700 }}>
+                      UPDATE
+                    </span>
+                    <button
+                      style={{
+                        background: '#fa0',
+                        color: '#222',
+                        border: 'none',
+                        borderRadius: 4,
+                        padding: '2px 8px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: 11
+                      }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setActionLoading(true);
+                        setError(null);
+                        sendWS({ type: 'updateSteamGame', path: b.path }, () => {
+                          setActionLoading(false);
+                        });
+                      }}
+                      title={`Update from build ${b.version || 'unknown'} to ${b.latestBuildId || 'latest'}`}
+                      disabled={!steamCmdDetected}
+                    >
+                      Update
+                    </button>
+                  </>
                 ) : b.installAvailable ? (
                   <button
                     style={{
@@ -402,7 +441,9 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
                   >
                     Install
                   </button>
-                ) : 'No'}
+                ) : (
+                  <span style={{ fontSize: '0.85em', color: '#4ade80' }}>Up to date</span>
+                )}
               </div>
               <div style={{ flex: '1 1 160px', minWidth: 120 }}>{progressDisplay}</div>
               <div style={{ flex: '1 1 100px', minWidth: 80 }}>{b.latestBuildId || '-'}</div>

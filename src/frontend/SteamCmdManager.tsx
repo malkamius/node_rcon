@@ -18,7 +18,7 @@ export const SteamCmdManager: React.FC<SteamCmdManagerProps> = ({ ws }) => {
     const handleMessage = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'getSteamCmdInstall') {
+        if (msg.type === 'getSteamCmdInstall' && msg.result) {
           setSteamCmdPath(msg.result.steamCmdPath || '');
           setOriginalSteamCmdPath(msg.result.steamCmdPath || '');
           setDetected(!!msg.result.found);
@@ -50,20 +50,36 @@ export const SteamCmdManager: React.FC<SteamCmdManagerProps> = ({ ws }) => {
         }
       } catch {}
     };
+
+    const sendInitial = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'getSteamCmdInstall', requestId: 'steamcmd1' }));
+      }
+    };
+
     ws.addEventListener('message', handleMessage);
-    ws.send(JSON.stringify({ type: 'getSteamCmdInstall', requestId: 'steamcmd1' }));
-    return () => ws.removeEventListener('message', handleMessage);
+
+    if (ws.readyState === WebSocket.OPEN) {
+      sendInitial();
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+      ws.addEventListener('open', sendInitial);
+    }
+
+    return () => {
+      ws.removeEventListener('message', handleMessage);
+      ws.removeEventListener('open', sendInitial);
+    };
   }, [ws]);
 
   const handleInstall = () => {
-    if (!ws) return;
+    if (!ws || ws.readyState !== 1) return;
     setInstalling(true);
     setError(null);
     ws.send(JSON.stringify({ type: 'installSteamCmd', baseInstallPath: steamCmdPath, requestId: 'steamcmd2' }));
   };
 
   const handleUpdatePath = () => {
-    if (!ws || !steamCmdPath || updating) return;
+    if (!ws || ws.readyState !== 1 || !steamCmdPath || updating) return;
     setUpdating(true);
     setError(null);
     ws.send(JSON.stringify({ type: 'setSteamCmdPath', steamCmdPath, requestId: 'steamcmd4' }));

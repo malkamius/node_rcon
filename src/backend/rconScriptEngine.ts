@@ -1,10 +1,6 @@
-// RCON Script Engine for Ark: Survival Ascended server management
-// This module parses and executes RCON scripts with support for wait and update-base-install commands.
-// See requirements.server-instance-management.md for full requirements.
-
 import { RconManager, ServerProfile, BaseInstallProfile } from './rconManager';
 import { getProfiles } from './profiles';
-import { processManager } from './server';
+import { ProcessManager } from './ProcessManager';
 import path from 'path';
 import fs from 'fs';
 
@@ -22,9 +18,11 @@ export interface ScriptExecution {
 }
 
 const scriptQueues: Record<string, ScriptExecution[]> = {};
-// Assume rconManager is instantiated in server.ts and imported here if needed
 let rconManager: RconManager | undefined;
-export function setRconManager(instance: RconManager) { rconManager = instance; }
+export function setRconManager(instance: any) { rconManager = instance; }
+
+let processManagerInstance: ProcessManager | undefined;
+export function setProcessManager(instance: any) { processManagerInstance = instance; }
 
 export function parseScript(script: string): ScriptLine[] {
   return script.split(/\r?\n/).map(line => {
@@ -39,6 +37,61 @@ export function parseScript(script: string): ScriptLine[] {
   });
 }
 
+export async function runScriptLoop(exec: ScriptExecution, server: ServerProfile, baseInstalls: BaseInstallProfile[]): Promise<void> {
+  const key = exec.serverKey;
+  try {
+    for (; exec.currentLine < exec.lines.length; exec.currentLine++) {
+      if (exec.cancelled) {
+        exec.status = 'cancelled';
+        break;
+      }
+      const line = exec.lines[exec.currentLine];
+      if (line.type === 'wait') {
+        const ms = parseInt(line.value || '0', 10);
+        if (!isNaN(ms) && ms > 0) {
+          // Check cancellation in small slices or use timeout
+          const start = Date.now();
+          while (Date.now() - start < ms) {
+            if (exec.cancelled) {
+              exec.status = 'cancelled';
+              return;
+            }
+            const sleepChunk = Math.min(250, ms - (Date.now() - start));
+            await new Promise(res => setTimeout(res, sleepChunk));
+          }
+        }
+      } else if (line.type === 'update-base-install') {
+        const baseId = line.value;
+        const base = baseInstalls.find(b => b.id === baseId);
+        if (!base) {
+          exec.status = 'error';
+          exec.error = `Base install not found: ${baseId}`;
+          break;
+        }
+        // Block if any server is running with this base install
+        const profiles = getProfiles();
+        const running = profiles.some((p: ServerProfile) => p.baseInstallId === baseId && isServerRunning(p));
+        if (running) {
+          exec.status = 'error';
+          exec.error = `Cannot update base install ${baseId}: in use by running server.`;
+          break;
+        }
+        await updateBaseInstallStub(base);
+      } else {
+        if (!rconManager) throw new Error('RconManager not set');
+        await rconManager.sendCommand(key, line.raw);
+      }
+    }
+
+    if (exec.status === 'running') {
+      exec.status = 'completed';
+    }
+  } catch (err: any) {
+    exec.status = 'error';
+    exec.error = err?.message || String(err);
+  }
+}
+
 export async function executeScript(server: ServerProfile, script: string, baseInstalls: BaseInstallProfile[]): Promise<ScriptExecution> {
   const lines = parseScript(script);
   const key = server.host + ':' + server.port;
@@ -47,55 +100,24 @@ export async function executeScript(server: ServerProfile, script: string, baseI
     script,
     lines,
     currentLine: 0,
-    status: 'pending',
+    status: 'running',
     startedAt: Date.now(),
     cancelled: false,
   };
-  if (!scriptQueues[key]) scriptQueues[key] = [];
-  scriptQueues[key].push(exec);
-  exec.status = 'running';
-  for (; exec.currentLine < lines.length; exec.currentLine++) {
-    if (exec.cancelled) {
-      exec.status = 'cancelled';
-      break;
-    }
-    const line = lines[exec.currentLine];
-    if (line.type === 'wait') {
-      const ms = parseInt(line.value || '0', 10);
-      if (!isNaN(ms) && ms > 0) await new Promise(res => setTimeout(res, ms));
-    } else if (line.type === 'update-base-install') {
-      const baseId = line.value;
-      const base = baseInstalls.find(b => b.id === baseId);
-      if (!base) {
-        exec.status = 'error';
-        exec.error = `Base install not found: ${baseId}`;
-        break;
-      }
-      // Block if any server is running with this base install
-      const profiles = getProfiles();
-      const running = profiles.some((p: ServerProfile) => p.baseInstallId === baseId && isServerRunning(p));
-      if (running) {
-        exec.status = 'error';
-        exec.error = `Cannot update base install ${baseId}: in use by running server.`;
-        break;
-      }
-      await updateBaseInstallStub(base);
-    } else {
-      if (!rconManager) throw new Error('RconManager not set');
-      const key = server.host + ':' + server.port;
-      await rconManager.sendCommand(key, line.raw);
-    }
-  }
+  scriptQueues[key] = [exec];
 
-  if (exec.status === 'running') exec.status = 'completed';
+  // Start execution in background so client receives initial execution descriptor immediately
+  runScriptLoop(exec, server, baseInstalls);
+
   return exec;
 }
 
 // Helper to check if a server is running (matches logic in server.ts)
 function isServerRunning(profile: ServerProfile): boolean {
+  if (!processManagerInstance) return false;
   const key = profile.host + ':' + profile.port;
-  const status = processManager.getStatus(key);
-  return !!status.running;
+  const status = processManagerInstance.getStatus(key);
+  return !!status?.running;
 }
 
 // Stub for base install update
@@ -108,8 +130,12 @@ export function cancelScript(serverKey: string): boolean {
   const queue = scriptQueues[serverKey];
   if (!queue || queue.length === 0) return false;
   const exec = queue[0];
-  exec.cancelled = true;
-  return true;
+  if (exec.status === 'running' || exec.status === 'pending') {
+    exec.cancelled = true;
+    exec.status = 'cancelled';
+    return true;
+  }
+  return false;
 }
 
 export function getScriptStatus(serverKey: string): ScriptExecution | undefined {

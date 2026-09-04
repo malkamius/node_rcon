@@ -11,8 +11,74 @@ function getDriveLetter(p) {
     const match = /^([a-zA-Z]:)/.exec(path_1.default.resolve(p));
     return match ? match[1].toUpperCase() : '';
 }
+function updateGameUserSettings(filePath, settings) {
+    let lines = [];
+    if (fs_1.default.existsSync(filePath)) {
+        const raw = fs_1.default.readFileSync(filePath, 'utf-8');
+        lines = raw.split(/\r?\n/);
+    }
+    // Find [ServerSettings] section
+    let serverSettingsIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().toLowerCase() === '[serversettings]') {
+            serverSettingsIndex = i;
+            break;
+        }
+    }
+    const keysToSet = { ...settings };
+    const updatedKeys = new Set();
+    if (serverSettingsIndex !== -1) {
+        // Find where [ServerSettings] section ends (next section header or end of file)
+        let nextSectionIndex = lines.length;
+        for (let i = serverSettingsIndex + 1; i < lines.length; i++) {
+            if (/^\s*\[.+\]/.test(lines[i].trim())) {
+                nextSectionIndex = i;
+                break;
+            }
+        }
+        // Update existing keys in [ServerSettings]
+        for (let i = serverSettingsIndex + 1; i < nextSectionIndex; i++) {
+            const match = lines[i].match(/^\s*([^=]+?)\s*=/);
+            if (match) {
+                const existingKey = match[1].trim();
+                for (const [targetKey, targetVal] of Object.entries(keysToSet)) {
+                    if (existingKey.toLowerCase() === targetKey.toLowerCase()) {
+                        lines[i] = `${targetKey}=${targetVal}`;
+                        updatedKeys.add(targetKey);
+                        break;
+                    }
+                }
+            }
+        }
+        // Insert any missing keys before the next section
+        const missingLines = [];
+        for (const [targetKey, targetVal] of Object.entries(keysToSet)) {
+            if (!updatedKeys.has(targetKey)) {
+                missingLines.push(`${targetKey}=${targetVal}`);
+            }
+        }
+        if (missingLines.length > 0) {
+            lines.splice(nextSectionIndex, 0, ...missingLines);
+        }
+    }
+    else {
+        // [ServerSettings] does not exist in file, add it
+        if (lines.length > 0 && lines[lines.length - 1].trim() !== '') {
+            lines.push('');
+        }
+        lines.push('[ServerSettings]');
+        for (const [targetKey, targetVal] of Object.entries(keysToSet)) {
+            lines.push(`${targetKey}=${targetVal}`);
+        }
+    }
+    while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+        lines.pop();
+    }
+    lines.push('');
+    fs_1.default.writeFileSync(filePath, lines.join('\r\n'), 'utf-8');
+}
 const installInstanceHandler = async (params) => {
-    const { baseInstallPath, instanceDirectory, linkType = 'Junction' } = params;
+    const { baseInstallPath, instanceDirectory, linkType = 'Junction', rconPort, queryPort, gamePort, adminPassword, serverPassword } = params;
     if (!baseInstallPath || !instanceDirectory) {
         throw new Error('baseInstallPath and instanceDirectory are required');
     }
@@ -123,6 +189,24 @@ const installInstanceHandler = async (params) => {
                 (0, fsUtils_1.ensureDirSync)(realFolderPath);
             }
         }
+    }
+    // Ensure config files exist and are configured
+    const configDir = path_1.default.join(instanceSavedPath, 'Config', 'WindowsServer');
+    (0, fsUtils_1.ensureDirSync)(configDir);
+    const effectiveRconPort = rconPort || queryPort || 27020;
+    const gusSettings = {
+        RCONEnabled: 'True',
+        RCONPort: effectiveRconPort,
+        ServerAdminPassword: adminPassword || ''
+    };
+    if (serverPassword !== undefined && serverPassword !== null && serverPassword !== '') {
+        gusSettings.ServerPassword = serverPassword;
+    }
+    const gusPath = path_1.default.join(configDir, 'GameUserSettings.ini');
+    updateGameUserSettings(gusPath, gusSettings);
+    const gameIniPath = path_1.default.join(configDir, 'Game.ini');
+    if (!fs_1.default.existsSync(gameIniPath)) {
+        fs_1.default.writeFileSync(gameIniPath, '[/Script/ShooterGame.ShooterGameMode]\n', 'utf-8');
     }
     return `SUCCESS: Ark Ascended server instance created successfully at '${instanceDirectory}'!\nUnique config files are located in: '${instanceDirectory}\\ShooterGame\\Saved\\Config\\WindowsServer'`;
 };

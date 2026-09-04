@@ -1,3 +1,7 @@
+// Wire up getProcessStatuses for getProfiles
+import { setGetProcessStatuses, getProfiles, saveProfiles } from './profiles';
+const processStatuses: Record<string, ProcessStatus> = {};
+setGetProcessStatuses(() => processStatuses);
 // File: src/backend/server.ts
 import express, { Request, Response } from 'express';
 import { ArkSAProcessManager, ProcessManager, ServerProcessProfile, ProcessStatus } from './ProcessManager';
@@ -6,14 +10,24 @@ import { WebSocketServer } from 'ws';
 import path from 'path';
 import fs from 'fs';
 
-import { getProfiles, saveProfiles } from './profiles';
+
 import { RconManager } from './rconManager';
 import * as rconScriptEngine from './rconScriptEngine';
+import { getScriptTemplates, getScriptTemplateById, saveScriptTemplate, deleteScriptTemplate } from './scriptTemplates';
+import { listServerLogFiles, tailServerLog, getLogFilePath } from './serverLogsApi';
 import iniApi from './iniApi';
 import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
 import { ensureSocketServer } from './adminSocketClient';
 import { exit } from 'process';
 import { exec, spawn } from 'child_process';
+import {
+  parseAcfBuildId,
+  getAcfBuildIdFromDir,
+  fetchSteamLatestBuildId,
+  evaluateBaseInstalls,
+  findLinkedBaseInstall,
+  BaseInstallInfo
+} from './steamUpdateNotifier';
 
 const configPath = path.join(__dirname, '../../config.json');
 const defaultConfig = {
@@ -73,22 +87,21 @@ async function getBaseInstallsFromProfiles() {
   if(!config.baseInstalls) config.baseInstalls = [];
   for (const profile of profiles) {
     if (profile.game === 'ark_sa' && profile.directory) {
-      await getBaseInstall(profile.directory).then(path => {
-        if(!config.baseInstalls.some((b: any) => b.path === path)) {
-          config.baseInstalls.push({ id: path, path: path, version: null, lastUpdated: null, updateAvailable: false, latestBuildId: null });
-          profile.baseInstallPath = path; // Store in profile for easy access
+      await getBaseInstall(profile.directory).then(basePath => {
+        const resolvedPath = String(basePath);
+        if(!config.baseInstalls.some((b: any) => b.path === resolvedPath)) {
+          config.baseInstalls.push({ id: resolvedPath, path: resolvedPath, version: null, lastUpdated: null, updateAvailable: false, latestBuildId: null });
+          profile.baseInstallPath = resolvedPath; // Store in profile for easy access
         }
-      }).catch(error => {
-        console.error(`Error getting base install for profile ${profile.id}:`, error);
+      }).catch(_error => {
+        // Directory may not exist yet or in test environments; ignore silently
       });
     }
   }
 }
 
 (async () => {
-  await getBaseInstallsFromProfiles().catch(err => {
-    console.error('Error getting base installs from profiles:', err);
-  });
+  await getBaseInstallsFromProfiles().catch(() => {});
 })();
 
 // --- Process Manager Abstraction ---
@@ -127,64 +140,43 @@ if (process.env.NODE_ENV !== 'test') {
 export { processManager };
 
 // --- Periodic Base Install Update Check ---
-const STEAMCMD_API_URL = 'https://api.steamcmd.net/v1/info/2430930';
 let latestBuildId: string | null = null;
 
 async function fetchLatestBuildId() {
-  try {
-    const res = await fetch(STEAMCMD_API_URL);
-    const data = await res.json();
-    latestBuildId = data?.data?.['2430930']?.depots?.branches?.public?.buildid || null;
-    return latestBuildId;
-  } catch (err) {
-    latestBuildId = null;
-    return null;
+  const buildId = await fetchSteamLatestBuildId();
+  if (buildId) {
+    latestBuildId = buildId;
   }
+  return latestBuildId;
 }
 
-async function checkBaseInstallUpdates() {
-  await fetchLatestBuildId();
+async function checkBaseInstallUpdates(forceFetch: boolean = true) {
+  if (forceFetch || !latestBuildId) {
+    await fetchLatestBuildId();
+  }
   config.baseInstalls = config.baseInstalls || [];
-  for (const base of config.baseInstalls) {
-    // Try to read build id from ACF file
-    try {
-      const acfPath = require('path').join(base.path, 'steamapps', 'appmanifest_2430930.acf');
-      if (require('fs').existsSync(acfPath)) {
-        const acfRaw = require('fs').readFileSync(acfPath, 'utf-8');
-        const buildIdMatch = acfRaw.match(/"buildid"\s+"(\d+)"/);
-        const buildId = buildIdMatch ? buildIdMatch[1] : null;
-        const newUpdateAvailable = latestBuildId && buildId && buildId !== latestBuildId
-        let isDirty = buildId != base.version || base.updateAvailable !== newUpdateAvailable || base.latestBuildId !== latestBuildId
-        base.version = buildId;
-        base.updateAvailable = newUpdateAvailable;
-        base.installAvailable = false;
-        base.latestBuildId = latestBuildId;
-        base.isDirty = isDirty;
-      } else {
-        base.version = null;
-        base.updateAvailable = false;
-        base.installAvailable = true;
-        base.latestBuildId = latestBuildId;
-        base.isDirty = true;
-      }
-    } catch {
-      base.version = null;
-      base.updateAvailable = false;
-      base.installAvailable = false;
-      base.latestBuildId = latestBuildId;
-      base.isDirty = true;
-    }
-  }
-  if (config.baseInstalls.filter((b: { isDirty: boolean; }) => !!b.isDirty).length > 0) {
-    config.baseInstalls.forEach((b: { isDirty: boolean; }) => { b.isDirty = false; });
+  const { updatedList, hasChanges } = evaluateBaseInstalls(config.baseInstalls, latestBuildId);
+  config.baseInstalls = updatedList;
+
+  if (hasChanges) {
     require('fs').writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    // Broadcast base install updates to connected frontend clients
+    broadcast('baseInstallsUpdated', { baseInstalls: config.baseInstalls, latestBuildId });
+    // Also notify that server profile update flags may have shifted
+    broadcast('profilesChanged', { profiles: getProfiles() });
   }
+  return { baseInstalls: config.baseInstalls, latestBuildId, hasChanges };
 }
 
 
 // Start periodic check after config is declared (must be after config is defined)
+let baseInstallUpdateTimer: NodeJS.Timeout | null = null;
 function startBaseInstallUpdateInterval() {
-  setInterval(checkBaseInstallUpdates, config.baseInstallUpdateCheckInterval || 10000);
+  if (baseInstallUpdateTimer) clearInterval(baseInstallUpdateTimer);
+  baseInstallUpdateTimer = setInterval(checkBaseInstallUpdates, config.baseInstallUpdateCheckInterval || 10000);
+  if (baseInstallUpdateTimer.unref) {
+    baseInstallUpdateTimer.unref();
+  }
   checkBaseInstallUpdates();
 }
 
@@ -193,15 +185,15 @@ if (process.env.NODE_ENV !== 'test') {
   startBaseInstallUpdateInterval();
 }
 
-async function ensureSocket()
-{
-  return ensureSocketServer();
-}
+// async function ensureSocket()
+// {
+//   return ensureSocketServer();
+// }
 
-ensureSocket().catch(err => {
-  console.error('Error ensuring admin socket server:', err);
-  exit(1);
-});
+// ensureSocket().catch(err => {
+//   console.error('Error ensuring admin socket server:', err);
+//   exit(1);
+// });
 
 
 const server = http.createServer(app);
@@ -249,9 +241,19 @@ app.post('/api/validate-steamcmd-path', express.json(), (req: Request, res: Resp
   }
 });
 
+// Trigger on-demand check for base install updates
+app.post('/api/check-updates', async (req: Request, res: Response) => {
+  try {
+    const result = await checkBaseInstallUpdates(true);
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to check updates' });
+  }
+});
+
 // List base installs
 app.get('/api/base-installs', (req: Request, res: Response) => {
-  res.json({ baseInstalls: config.baseInstalls || [] });
+  res.json({ baseInstalls: config.baseInstalls || [], latestBuildId });
 });
 
 // Add a new base install
@@ -401,7 +403,9 @@ const connectedPlayers: Record<string, Set<string>> = {};
 
 // RCON Manager instance
 const rconManager = new RconManager();
+export { rconManager };
 rconScriptEngine.setRconManager(rconManager);
+rconScriptEngine.setProcessManager(processManager);
 // --- RCON Script Engine API ---
 // POST /api/execute-script { key, script }
 app.post('/api/execute-script', express.json(), async (req, res) => {
@@ -445,6 +449,248 @@ app.post('/api/cancel-script', express.json(), (req, res) => {
   const ok = rconScriptEngine.cancelScript(key);
   auditLog('cancelScript', { key, ok });
   res.json({ ok });
+});
+
+// POST /api/broadcast-command { keys: string[], command: string }
+app.post('/api/broadcast-command', express.json(), async (req: Request, res: Response) => {
+  const { keys, command } = req.body || {};
+
+  if (!Array.isArray(keys) || keys.length === 0 || !keys.every(k => typeof k === 'string' && k.trim().length > 0)) {
+    return res.status(400).json({ error: 'keys must be an array with at least 1 non-empty string' });
+  }
+
+  if (typeof command !== 'string' || !command.trim()) {
+    return res.status(400).json({ error: 'command must be a non-empty string' });
+  }
+
+  for (const key of keys) {
+    const commandLine = {
+      text: '> ' + command,
+      timestamp: Date.now(),
+      type: 'command' as const,
+    };
+    if (!sessionLines[key]) {
+      sessionLines[key] = loadSessionLinesFromDisk(key);
+    }
+    sessionLines[key].push(commandLine);
+    if (sessionLines[key].length > SESSION_LINES_MAX) {
+      sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
+    }
+    saveSessionLinesToDisk(key, sessionLines[key]);
+    broadcast('sessionLine', { key, line: commandLine });
+  }
+
+  const promiseResults = await Promise.allSettled(
+    keys.map(key => rconManager.sendCommand(key, command))
+  );
+
+  const results: Array<{ key: string; output: string; status: string }> = [];
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const resItem = promiseResults[i];
+    let output = '';
+    if (resItem.status === 'fulfilled') {
+      output = typeof resItem.value === 'string' ? resItem.value : String(resItem.value ?? '');
+    } else {
+      output = '[RCON ERROR] ' + (resItem.reason?.message || String(resItem.reason));
+    }
+
+    let status = 'success';
+    if (output === '[RCON] Not connected' || output.startsWith('[RCON] Not connected')) {
+      status = 'disconnected';
+    } else if (output.startsWith('[RCON ERROR]')) {
+      status = 'error';
+    } else {
+      status = 'success';
+    }
+
+    if (typeof output === 'string' && output.trim()) {
+      const outputLine = {
+        text: output,
+        timestamp: Date.now(),
+        type: 'output' as const,
+      };
+      if (!sessionLines[key]) {
+        sessionLines[key] = loadSessionLinesFromDisk(key);
+      }
+      sessionLines[key].push(outputLine);
+      if (sessionLines[key].length > SESSION_LINES_MAX) {
+        sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
+      }
+      saveSessionLinesToDisk(key, sessionLines[key]);
+      broadcast('sessionLine', { key, line: outputLine });
+    }
+
+    results.push({ key, output, status });
+  }
+
+  auditLog('broadcastCommand', { count: keys.length, keys, command });
+
+  res.json({ ok: true, command, results });
+});
+
+// --- Script Templates API ---
+// GET /api/scripts
+app.get('/api/scripts', (req, res) => {
+  try {
+    const templates = getScriptTemplates();
+    res.json({ templates });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
+// POST /api/scripts { id?, name, description?, content }
+app.post('/api/scripts', express.json(), (req, res) => {
+  const { id, name, description, content } = req.body || {};
+  if (!name || typeof name !== 'string' || !name.trim() || content === undefined || content === null || typeof content !== 'string' || !content.trim()) {
+    auditLog('saveScriptTemplate_error', { id, name, error: 'Name and content are required' });
+    return res.status(400).json({ error: 'Name and content are required' });
+  }
+  try {
+    const template = saveScriptTemplate({ id, name, description, content });
+    auditLog('saveScriptTemplate', { id: template.id, name: template.name });
+    res.json({ ok: true, template });
+  } catch (err: any) {
+    auditLog('saveScriptTemplate_error', { id, name, error: err?.message || String(err) });
+    res.status(400).json({ error: err?.message || String(err) });
+  }
+});
+
+// DELETE /api/scripts/:id
+app.delete('/api/scripts/:id', (req, res) => {
+  const { id } = req.params;
+  const existing = getScriptTemplateById(id);
+  if (existing?.isBuiltIn) {
+    auditLog('deleteScriptTemplate_error', { id, error: 'Cannot delete built-in template' });
+    return res.status(400).json({ error: 'Cannot delete built-in template' });
+  }
+  if (!existing) {
+    auditLog('deleteScriptTemplate_error', { id, error: 'Template not found' });
+    return res.status(404).json({ error: 'Template not found' });
+  }
+  const deleted = deleteScriptTemplate(id);
+  if (!deleted) {
+    auditLog('deleteScriptTemplate_error', { id, error: 'Failed to delete template' });
+    return res.status(400).json({ error: 'Failed to delete template' });
+  }
+  auditLog('deleteScriptTemplate', { id });
+  res.json({ ok: true });
+});
+
+// POST /api/open-directory { key?, directory? }
+app.post('/api/open-directory', express.json(), (req, res) => {
+  const { key, directory } = req.body;
+  let targetDir = directory;
+
+  if (!targetDir && key) {
+    const profiles = getProfiles();
+    const server = profiles.find((p: any) => `${p.host}:${p.port}` === key);
+    if (server && server.directory) {
+      targetDir = server.directory;
+    }
+  }
+
+  if (!targetDir || typeof targetDir !== 'string') {
+    auditLog('openDirectory_error', { key, error: 'Missing or invalid directory' });
+    return res.status(400).json({ error: 'Server directory is not configured' });
+  }
+
+  const normalizedDir = path.resolve(targetDir);
+  if (!fs.existsSync(normalizedDir)) {
+    auditLog('openDirectory_error', { key, directory: normalizedDir, error: 'Directory does not exist on disk' });
+    return res.status(404).json({ error: `Directory does not exist: ${normalizedDir}` });
+  }
+
+  try {
+    const child = spawn('explorer.exe', [normalizedDir], {
+      detached: true,
+      stdio: 'ignore'
+    });
+    child.unref();
+    auditLog('openDirectory', { key, directory: normalizedDir });
+    res.json({ ok: true });
+  } catch (err: any) {
+    auditLog('openDirectory_error', { key, directory: normalizedDir, error: String(err) });
+    res.status(500).json({ error: `Failed to open directory: ${err?.message || String(err)}` });
+  }
+});
+
+// --- Server Crash & Engine Log Viewer API ---
+
+// GET /api/server-logs/:key - List all log files for a server instance
+app.get('/api/server-logs/:key', async (req: Request, res: Response) => {
+  const { key } = req.params;
+  const profiles = getProfiles();
+  const server = profiles.find((p: any) => `${p.host}:${p.port}` === key);
+  if (!server) {
+    return res.status(404).json({ error: 'Server profile not found' });
+  }
+  if (!server.directory) {
+    return res.status(400).json({ error: 'Server directory not configured' });
+  }
+
+  try {
+    const files = await listServerLogFiles(server.directory);
+    res.json({ files, directory: server.directory });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to list server log files' });
+  }
+});
+
+// GET /api/server-logs/:key/tail - Tail lines from a specific log file
+app.get('/api/server-logs/:key/tail', async (req: Request, res: Response) => {
+  const { key } = req.params;
+  const file = (req.query.file as string) || 'ShooterGame.log';
+  const lines = req.query.lines ? parseInt(req.query.lines as string, 10) : 200;
+  const filter = (req.query.filter as string) || '';
+
+  const profiles = getProfiles();
+  const server = profiles.find((p: any) => `${p.host}:${p.port}` === key);
+  if (!server) {
+    return res.status(404).json({ error: 'Server profile not found' });
+  }
+  if (!server.directory) {
+    return res.status(400).json({ error: 'Server directory not configured' });
+  }
+
+  try {
+    const result = await tailServerLog(server.directory, file, { lines, search: filter });
+    res.json(result);
+  } catch (err: any) {
+    const status = err?.message?.includes('not found') ? 404 : 400;
+    res.status(status).json({ error: err?.message || 'Failed to tail log file' });
+  }
+});
+
+// GET /api/server-logs/:key/download - Download full log file
+app.get('/api/server-logs/:key/download', (req: Request, res: Response) => {
+  const { key } = req.params;
+  const file = (req.query.file as string) || 'ShooterGame.log';
+
+  const profiles = getProfiles();
+  const server = profiles.find((p: any) => `${p.host}:${p.port}` === key);
+  if (!server) {
+    return res.status(404).json({ error: 'Server profile not found' });
+  }
+  if (!server.directory) {
+    return res.status(400).json({ error: 'Server directory not configured' });
+  }
+
+  try {
+    const fullPath = getLogFilePath(server.directory, file);
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: `Log file not found: ${file}` });
+    }
+    res.download(fullPath, file, (err) => {
+      if (err && !res.headersSent) {
+        res.status(500).json({ error: 'Failed to download log file' });
+      }
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || 'Invalid log file request' });
+  }
 });
 
 
@@ -625,9 +871,32 @@ function broadcast(type: string, payload: any) {
   };
   rconManager.on('chatMessage', chatListener);
 
+// Store process statuses by key
+
 processManager.on('processStatus', (key: string, status: ProcessStatus) => {
+  processStatuses[key] = status;
   broadcast('processStatus', { key, status });
 });
+
+processManager.on('serverCrash', (key: string, details: any) => {
+  auditLog('server_crash', { key, ...details });
+  // Add a system notice line to session lines
+  const noticeText = `[CRASH ALERT] Server process exited unexpectedly${details.code !== undefined ? ` (exit code: ${details.code})` : ''} at ${new Date().toLocaleTimeString()}`;
+  const crashLine: { text: string; timestamp: number; type: 'output' } = {
+    text: noticeText,
+    timestamp: Date.now(),
+    type: 'output'
+  };
+  if (!sessionLines[key]) sessionLines[key] = [];
+  sessionLines[key].push(crashLine);
+  if (sessionLines[key].length > SESSION_LINES_MAX) {
+    sessionLines[key] = sessionLines[key].slice(-SESSION_LINES_MAX);
+  }
+  saveSessionLinesToDisk(key, sessionLines[key]);
+  broadcast('sessionLine', { key, line: crashLine });
+  broadcast('serverCrash', { key, ...details });
+});
+
 processManager.startPeriodicStatusCheck(10000); // Check every 10 seconds
 
 // WebSocket: send status updates to clients
@@ -641,10 +910,38 @@ import { IniHandler } from './handlers/IniHandler';
 
 
 // Wire up profiles broadcast for websocket notifications
-import { setProfileChangedEvent } from './profiles';
-setProfileChangedEvent(() => {
+import { setProfileChangedEvent, setConfigWatcher } from './profiles';
+import { createConfigWatcher, ConfigWatcher } from './configWatcher';
+setProfileChangedEvent((type: string, payload: any) => {
   rconManager.loadProfiles();
+  broadcast(type, payload);
 }); 
+
+// Hot reload watcher for external config.json changes
+const configWatcher = createConfigWatcher({
+  configPath,
+  debounceMs: 250,
+  onProfilesChanged: (newProfiles, changedKeys) => {
+    config.profiles = newProfiles;
+    rconManager.loadProfiles();
+    broadcast('profilesChanged', { changedKeys, profiles: getProfiles() });
+  },
+  onConfigChanged: (newConfig) => {
+    const oldBaseInstalls = JSON.stringify(config.baseInstalls || []);
+    Object.assign(config, newConfig);
+    const newBaseInstalls = JSON.stringify(config.baseInstalls || []);
+    if (oldBaseInstalls !== newBaseInstalls) {
+      broadcast('baseInstallsUpdated', { baseInstalls: config.baseInstalls, latestBuildId });
+    }
+  },
+  logger: console
+});
+setConfigWatcher(configWatcher);
+
+if (process.env.NODE_ENV !== 'test') {
+  configWatcher.start();
+}
+export { configWatcher };
 
 // Context object to pass shared dependencies to handlers
 const handlerContext = {
@@ -663,7 +960,8 @@ const handlerContext = {
   auditLog,
   spawn: require('child_process').spawn,
   SESSION_LINES_MAX,
-  checkBaseInstallUpdates
+  checkBaseInstallUpdates,
+  configWatcher
 };
 
 // Instantiate handler classes
@@ -718,7 +1016,27 @@ wss.on('connection', (ws) => {
 
 // API: Get server profiles
 app.get('/api/profiles', (req, res) => {
-  res.json(getProfiles());
+  // Attach process status and base install metadata to each profile
+  const profiles = getProfiles();
+  const baseInstalls: BaseInstallInfo[] = config.baseInstalls || [];
+  const profilesWithStatus = profiles.map((p: any) => {
+    const key = `${p.host}:${p.port}`;
+    const linkedBase = findLinkedBaseInstall(p.directory, baseInstalls);
+    const effectiveBaseInstallId = p.baseInstallId || linkedBase?.id || null;
+    const effectiveBaseInstallPath = p.baseInstallPath || linkedBase?.path || null;
+    const updateAvailable = !!linkedBase?.updateAvailable;
+
+    return {
+      ...p,
+      baseInstallId: effectiveBaseInstallId,
+      baseInstallPath: effectiveBaseInstallPath,
+      baseInstallVersion: linkedBase?.version || null,
+      latestBuildId: linkedBase?.latestBuildId || latestBuildId || null,
+      updateAvailable,
+      processStatus: processStatuses[key] || null
+    };
+  });
+  res.json(profilesWithStatus);
 });
 
 
@@ -756,18 +1074,26 @@ app.post('/api/profiles', express.json(), (req, res) => {
 // Returns: { key, running, startTime }[]
 app.get('/api/process-status', (req, res) => {
   const profiles = getProfiles();
+  const baseInstalls: BaseInstallInfo[] = config.baseInstalls || [];
   const status = profiles.map((profile: any) => {
     const key = `${profile.host}:${profile.port}`;
     // Use processManager abstraction
     const status = processManager.getStatus(key);
     const proc = (processManager as any).processes?.[key];
+    const linkedBase = findLinkedBaseInstall(profile.directory, baseInstalls);
+    const effectiveBaseInstallId = profile.baseInstallId || linkedBase?.id || null;
+    const updateAvailable = !!linkedBase?.updateAvailable;
+
     return {
       key,
-      running: !!proc,
+      running: !!proc && !proc.crashed,
       startTime: proc ? proc.startTime : null,
+      crashed: !!proc?.crashed,
+      exitCode: proc ? proc.exitCode : null,
       manuallyStopped: !!profile.manuallyStopped,
       autoStart: !!profile.autoStart,
-      baseInstallId: profile.baseInstallId || null
+      baseInstallId: effectiveBaseInstallId,
+      updateAvailable
     };
   });
   res.json({ status });

@@ -12,6 +12,7 @@ interface InstanceInstallModalProps {
   onInstall: (params: InstanceInstallParams) => void;
   error?: string | null;
   clearError?: () => void;
+  installing?: boolean;
 }
 
 export interface InstanceInstallParams {
@@ -19,6 +20,7 @@ export interface InstanceInstallParams {
   instanceDirectory: string;
   queryPort: number;
   gamePort: number;
+  rconPort?: number;
   mapName: string;
   sessionName: string;
   adminPassword: string;
@@ -32,17 +34,28 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
   onInstall,
   error,
   clearError,
+  installing,
 }) => {
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<InstanceInstallParams>({
     baseInstallPath: '',
     instanceDirectory: '',
-    queryPort: 27020,
+    queryPort: 27015,
     gamePort: 7777,
-    mapName: 'TheIsland',
+    rconPort: 27020,
+    mapName: 'TheIsland_WP',
     sessionName: '',
     adminPassword: '',
     serverPassword: '',
   });
+
+  const isInstalling = Boolean(installing || submitting);
+
+  useEffect(() => {
+    if (!show || error) {
+      setSubmitting(false);
+    }
+  }, [show, error]);
 
   useEffect(() => {
     if (baseInstalls.length > 0 && !form.baseInstallPath) {
@@ -51,8 +64,11 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
   }, [baseInstalls]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+    const { name, value, type } = e.target;
+    setForm(f => ({
+      ...f,
+      [name]: type === 'number' ? (value === '' ? '' : Number(value)) : value,
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -61,7 +77,13 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
       if (clearError) clearError();
       return;
     }
-    onInstall(form);
+    setSubmitting(true);
+    onInstall({
+      ...form,
+      queryPort: Number(form.queryPort),
+      gamePort: Number(form.gamePort),
+      rconPort: form.rconPort !== undefined && form.rconPort !== null && (form.rconPort as any) !== '' ? Number(form.rconPort) : 27020,
+    });
   };
 
   if (!show) return null;
@@ -77,36 +99,41 @@ export const InstanceInstallModal: React.FC<InstanceInstallModalProps> = ({
         )}
         <form onSubmit={handleSubmit} style={{display: 'flex', flexDirection: 'column', gap: 10}}>
           <label>Base Install:
-            <select name="baseInstallPath" value={form.baseInstallPath} onChange={handleChange} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}}>
+            <select name="baseInstallPath" value={form.baseInstallPath} onChange={handleChange} disabled={isInstalling} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}}>
               {baseInstalls.map(b => (
                 <option key={b.id} value={b.path}>{b.path}</option>
               ))}
             </select>
           </label>
           <label>Instance Directory:
-            <input name="instanceDirectory" value={form.instanceDirectory} onChange={handleChange} placeholder="e.g. D:\\ArkServers\\MyNewInstance" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            <input name="instanceDirectory" value={form.instanceDirectory} onChange={handleChange} disabled={isInstalling} placeholder="e.g. D:\\ArkServers\\MyNewInstance" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
           <label>Query Port:
-            <input name="queryPort" type="number" value={form.queryPort} onChange={handleChange} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            <input name="queryPort" type="number" value={form.queryPort} onChange={handleChange} disabled={isInstalling} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
           <label>Game Port:
-            <input name="gamePort" type="number" value={form.gamePort} onChange={handleChange} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            <input name="gamePort" type="number" value={form.gamePort} onChange={handleChange} disabled={isInstalling} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+          </label>
+          <label>RCON Port:
+            <input name="rconPort" type="number" value={form.rconPort ?? ''} onChange={handleChange} disabled={isInstalling} style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
           <label>Map Name:
-            <input name="mapName" value={form.mapName} onChange={handleChange} placeholder="e.g. TheIsland" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            <input name="mapName" value={form.mapName} onChange={handleChange} disabled={isInstalling} placeholder="e.g. TheIsland_WP" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
           <label>Session Name:
-            <input name="sessionName" value={form.sessionName} onChange={handleChange} placeholder="e.g. My Ark Server" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            <input name="sessionName" value={form.sessionName} onChange={handleChange} disabled={isInstalling} placeholder="e.g. My Ark Server" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
           <label>Admin Password:
-            <input name="adminPassword" value={form.adminPassword} onChange={handleChange} type="password" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            <input name="adminPassword" value={form.adminPassword} onChange={handleChange} disabled={isInstalling} type="password" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
           <label>Server Password (optional):
-            <input name="serverPassword" value={form.serverPassword} onChange={handleChange} type="password" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
+            <input name="serverPassword" value={form.serverPassword} onChange={handleChange} disabled={isInstalling} type="password" style={{width: '100%', padding: 6, borderRadius: 4, border: '1px solid #444', background: '#181a20', color: '#eee'}} />
           </label>
           <div style={{display: 'flex', gap: 8, marginTop: 8}}>
-            <button type="submit" style={{flex: 1}}>Install Instance</button>
-            <button type="button" onClick={onClose} style={{flex: 1}}>Cancel</button>
+            <button type="submit" disabled={isInstalling} style={{flex: 1}}>
+              {isInstalling ? 'Installing Instance...' : 'Install Instance'}
+            </button>
+            <button type="button" onClick={onClose} disabled={isInstalling} style={{flex: 1}}>Cancel</button>
           </div>
         </form>
       </div>

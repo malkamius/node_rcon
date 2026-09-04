@@ -1,3 +1,9 @@
+### 1.1. Process Status Tracking
+- The backend must track the process status for each server instance by key (host:port).
+- When process status changes (e.g., process starts, stops, or updates), the backend updates an in-memory map of statuses.
+- When profiles are retrieved (via API or internally), each profile must include its current process status (e.g., running, startTime, etc.) as a `processStatus` property.
+- The frontend should display this process status for each server profile, even if RCON is disconnected.
+
 # Server Instance Management Requirements
 
 sample acf file from the local base file install:
@@ -40,6 +46,7 @@ This document outlines the requirements for implementing process management and 
 - **Frontend Controls**:
   - Add a right-click context menu to the server list (TabManager) with options to start/stop a server.
   - Support multi-select for servers. When multiple servers are selected, show a message in the RCON content window indicating that output and player lists are unavailable, but allow batch start/stop actions. Also allow commands to be sent to all selected servers
+    - [IMPLEMENTED] Multi-selection in TabManager with batch start/stop controls, informational notice banner and unavailable player list in RconClientWindow, and simultaneous RCON command broadcasting with multi-target ANSI formatted output.
   - Display server process status in the frontend. If RCON is disconnected but the process is running, show this status.
 
 ### 2. Base File Install Management

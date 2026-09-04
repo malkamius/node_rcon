@@ -68,7 +68,7 @@ A Node.js application (written in TypeScript) that manages persistent RCON conne
   - Tabs have an xterm window with all the contents of the rcon session (including command responses, chat messages, and player connect/disconnect events)  
     - [IMPLEMENTED]
   - Tabs can be navigated to directly with a hyperlink so people can bookmark individual server tabs. If they are not logged in, go to log in with a redirect url to the tab  
-    - [NOT YET IMPLEMENTED] Direct tab links and login redirect are not yet available.
+    - [IMPLEMENTED] Direct tab links and bookmarking available via URL hash/query (#server=host:port or ?server=host:port) and copy bookmark buttons.
   - Switching tabs should not require reloading the page, could use ajax if it wants though  
     - [IMPLEMENTED] Tab switching is client-side, no reload required.
 **Server Management Modal**:
@@ -137,7 +137,7 @@ A Node.js application (written in TypeScript) that manages persistent RCON conne
   - Handles tab creation, activation, and connection state.  
     - [IMPLEMENTED]
   - Tabs can be navigated directly via hyperlinks for bookmarking.  
-    - [NOT YET IMPLEMENTED] Direct tab links/bookmarks are not yet available.
+    - [IMPLEMENTED] Deep URL routing and bookmarking supported with URL hash/query sync and auto-selection on page reload.
 
 **WebSocket Communication**:
   - Each tab manages its own WebSocket connection for RCON communication.  
@@ -145,7 +145,7 @@ A Node.js application (written in TypeScript) that manages persistent RCON conne
   - The main app class may manage a base WebSocket for app-level events.  
     - [IMPLEMENTED]
   - If the front end is disconnected from the backend, a modal dialog should pop up and the frontend should start trying to reconnect to the backend every 5 seconds
-    - [NOT IMPLEMENTED]
+    - [IMPLEMENTED] Interactive connection loss modal with 5-second reconnect cycle, 1-second countdown ticker, retry attempt counter, manual retry button, and auto-dismissal on reconnection.
 **Layout Flow**:
   1. `index.html` loads and instantiates the App class with the `app` element.  
      - [IMPLEMENTED]
@@ -162,11 +162,11 @@ This structure ensures a modular, maintainable frontend that is easy to extend a
 
 ## Additional/Recommended Features
 **Hot Reload Config**: Optionally, watch the config file for changes and reload servers without restarting the backend.  
-  - [NOT YET IMPLEMENTED]
+  - [IMPLEMENTED] Backend file watcher (`fs.watch`) with debouncing, resilient JSON parsing, changed-key diff detection, automatic server profile reload in `RconManager`, and `profilesChanged` WebSocket broadcasting to connected clients.
 **Authentication**: Optionally, add a simple authentication layer for the web UI.  
   - [NOT YET IMPLEMENTED]
 **Responsive UI**: Ensure the frontend works well on various screen sizes.  
-  - [PARTIALLY IMPLEMENTED] Basic responsiveness, but not fully optimized for all devices.
+  - [IMPLEMENTED] Collapsible mobile hamburger drawer for server sidebar, touch-friendly action button wrapping across viewports, and dynamic terminal font scaling with ResizeObserver for tablets and handheld devices.
 **Graceful Shutdown**: On process exit, cleanly close all RCON connections.  
   - [IMPLEMENTED]
 **Error Handling**: Show connection errors and retry attempts in the UI.  

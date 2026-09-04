@@ -4,17 +4,22 @@ import { BaseInstallManager } from './BaseInstallManager';
 import { InstanceManager } from './InstanceManager';
 
 interface InstallManagerProps {
-  ws: WebSocket | null;
+  ws?: WebSocket | null;
+  wsRef?: React.MutableRefObject<WebSocket | null>;
   handleUpdateBaseInstallFiles: (path: string) => void;
   active?: boolean;
 }
 
-export const InstallManager: React.FC<InstallManagerProps> = ({ ws, handleUpdateBaseInstallFiles, active }) => {
+export const InstallManager: React.FC<InstallManagerProps> = ({ ws, wsRef, handleUpdateBaseInstallFiles, active }) => {
   const [baseInstalls, setBaseInstalls] = useState<any[]>([]);
   const [steamCmdDetected, setSteamCmdDetected] = useState(false);
 
+  const effectiveWs = (wsRef ? wsRef.current : ws) || null;
+
   useEffect(() => {
-    if (!ws) return;
+    const socket = wsRef ? wsRef.current : ws;
+    if (!socket) return;
+
     const handleMessage = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data);
@@ -24,23 +29,49 @@ export const InstallManager: React.FC<InstallManagerProps> = ({ ws, handleUpdate
         if (msg.type === 'baseInstallsUpdated') {
           setBaseInstalls(msg.baseInstalls || []);
         }
-        if (msg.type === 'getSteamCmdInstall') {
+        if (msg.type === 'getSteamCmdInstall' && msg.result) {
           setSteamCmdDetected(!!msg.result.found);
         }
       } catch {}
     };
-    ws.addEventListener('message', handleMessage);
-    ws.send(JSON.stringify({ type: 'getBaseInstalls', requestId: 'mgmt1' }));
-    ws.send(JSON.stringify({ type: 'getSteamCmdInstall', requestId: 'mgmt2' }));
-    return () => ws.removeEventListener('message', handleMessage);
-  }, [ws]);
+
+    const sendInitialRequests = () => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'getBaseInstalls', requestId: 'mgmt1' }));
+        socket.send(JSON.stringify({ type: 'getSteamCmdInstall', requestId: 'mgmt2' }));
+      }
+    };
+
+    socket.addEventListener('message', handleMessage);
+
+    if (socket.readyState === WebSocket.OPEN) {
+      sendInitialRequests();
+    } else if (socket.readyState === WebSocket.CONNECTING) {
+      socket.addEventListener('open', sendInitialRequests);
+    }
+
+    return () => {
+      socket.removeEventListener('message', handleMessage);
+      socket.removeEventListener('open', sendInitialRequests);
+    };
+  }, [ws, wsRef]);
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: 24, overflow: 'auto' }}>
       <h2>Server Management</h2>
-      <SteamCmdManager ws={ws} />
-      <BaseInstallManager ws={ws} steamCmdDetected={steamCmdDetected} handleUpdate={handleUpdateBaseInstallFiles} active={active} />
-      <InstanceManager ws={ws} baseInstalls={baseInstalls} steamCmdDetected={steamCmdDetected} />
+      <SteamCmdManager ws={effectiveWs} />
+      <BaseInstallManager ws={effectiveWs} steamCmdDetected={steamCmdDetected} handleUpdate={handleUpdateBaseInstallFiles} active={active} />
+      <InstanceManager
+        ws={effectiveWs}
+        baseInstalls={baseInstalls}
+        steamCmdDetected={steamCmdDetected}
+        onInstanceInstalled={() => {
+          const socket = wsRef ? wsRef.current : ws;
+          if (socket && socket.readyState === 1) {
+            socket.send(JSON.stringify({ type: 'getBaseInstalls', requestId: 'mgmt1' }));
+          }
+        }}
+      />
     </div>
   );
 };

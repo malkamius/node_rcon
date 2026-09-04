@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { sendElevatedCommand } from './adminSocketClient';
 function parseMicrosoftDateFormat(dateString: string): number | null {
   const regex = /\/Date\((\d+)\)\//; // Regex to capture the number
   const match = dateString.match(regex);
@@ -12,7 +12,14 @@ function parseMicrosoftDateFormat(dateString: string): number | null {
   return null; // Return null if parsing fails
 }
 export function listProcesses(): Promise<{ pid: number; exe: string; cmdline: string, startTime: Date | null }[]> {
-  return new Promise((resolve, reject) => {
+  return sendElevatedCommand('ListProcesses', {}).then((raw: any) => {
+    const rows = typeof raw === 'string' ? (raw.trim() ? JSON.parse(raw) : []) : raw;
+    return (Array.isArray(rows) ? rows : []).map(p => ({
+    pid: Number(p.pid), exe: String(p.exe || ''), cmdline: String(p.cmdline || ''),
+    startTime: p.startTime ? new Date(p.startTime) : null
+    }));
+  });
+  /* return new Promise((resolve, reject) => {
     const executableName = "ArkAscendedServer";
     const escapedExecutableName = `'${executableName}\'`;
     const powershellCommand = `Get-Process -Name ${escapedExecutableName} | Select-Object -Property Id, Path, CommandLine, StartTime | ConvertTo-Json`;
@@ -73,5 +80,5 @@ export function listProcesses(): Promise<{ pid: number; exe: string; cmdline: st
         reject(parseError);
       }
     });
-  });
+  }); */
 }

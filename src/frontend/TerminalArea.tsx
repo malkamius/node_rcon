@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { TerminalSession, TerminalLine } from './rconTerminalManager';
+import { getTerminalFontSize } from './responsiveUtils';
 
 interface TerminalAreaProps {
   activeTab: string | null;
@@ -25,9 +26,11 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
   useEffect(() => {
     if (!xtermContainerRef.current) return;
     if (!termRef.current) {
+      const initialWidth = xtermContainerRef.current.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 800);
+      const initialFontSize = getTerminalFontSize(initialWidth);
       const term = new Terminal({
         fontFamily: 'monospace',
-        fontSize: 15,
+        fontSize: initialFontSize,
         theme: {
           background: '#181c20',
           foreground: '#eee',
@@ -39,17 +42,71 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
       term.open(xtermContainerRef.current);
-      fitAddon.fit();
+      try {
+        fitAddon.fit();
+      } catch (err) {
+        // Safe catch if container not fully rendered yet
+      }
       termRef.current = term;
       fitAddonRef.current = fitAddon;
       newTerminal.current = true;
     }
-    // Fit on resize
+
+    const fitTerminal = () => {
+      if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+        window.requestAnimationFrame(() => {
+          try {
+            fitAddonRef.current?.fit();
+          } catch (e) {
+            // Ignore fit errors when element is hidden or detached
+          }
+        });
+      } else {
+        try {
+          fitAddonRef.current?.fit();
+        } catch (e) {
+          // Ignore
+        }
+      }
+    };
+
+    // ResizeObserver on xtermContainerRef.current for dynamic layout changes
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && xtermContainerRef.current) {
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const width = entry.contentRect.width || (xtermContainerRef.current ? xtermContainerRef.current.clientWidth : 0);
+          if (width > 0 && termRef.current) {
+            const newFontSize = getTerminalFontSize(width);
+            if (termRef.current.options.fontSize !== newFontSize) {
+              termRef.current.options.fontSize = newFontSize;
+            }
+          }
+        }
+        fitTerminal();
+      });
+      resizeObserver.observe(xtermContainerRef.current);
+    }
+
+    // Fallback window 'resize' listener
     const handleResize = () => {
-      fitAddonRef.current?.fit();
+      if (termRef.current && xtermContainerRef.current) {
+        const width = xtermContainerRef.current.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 0);
+        if (width > 0) {
+          const newFontSize = getTerminalFontSize(width);
+          if (termRef.current.options.fontSize !== newFontSize) {
+            termRef.current.options.fontSize = newFontSize;
+          }
+        }
+      }
+      fitTerminal();
     };
     window.addEventListener('resize', handleResize);
+
     return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       window.removeEventListener('resize', handleResize);
       termRef.current?.dispose();
       termRef.current = null;
@@ -128,8 +185,30 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
   }, [session, activeTab, sessionVersion, showTimestamps, loading]);
 
   return (
-    <div style={{ flex: 1, background: '#181c20', position: 'relative', overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
-      <div ref={xtermContainerRef} style={{ width: '100%', height: '100%' }} />
+    <div
+      className="terminal-wrapper"
+      style={{
+        flex: 1,
+        background: '#181c20',
+        position: 'relative',
+        overflow: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        minWidth: 0,
+        touchAction: 'pan-y',
+        WebkitOverflowScrolling: 'touch',
+      }}
+    >
+      <div
+        ref={xtermContainerRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          touchAction: 'pan-y',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      />
       {!activeTab && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
           Select a server tab to start a session.
@@ -141,11 +220,29 @@ export const TerminalArea: React.FC<TerminalAreaProps> = ({ activeTab, status, s
         </div>
       )}
       {activeTab && status && typeof status.status === 'string' ? (
-        <div style={{ position: 'absolute', top: 8, right: 16, color: status.status === 'connected' ? '#6f6' : status.status === 'connecting' ? '#ff6' : '#f66', fontWeight: 'bold' }}>
+        <div
+          className="terminal-status-badge"
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 16,
+            color: status.status === 'connected' ? '#6f6' : status.status === 'connecting' ? '#ff6' : '#f66',
+            fontWeight: 'bold',
+          }}
+        >
           {status.status.charAt(0).toUpperCase() + status.status.slice(1)}
         </div>
       ) : activeTab && status && (
-        <div style={{ position: 'absolute', top: 8, right: 16, color: '#f66', fontWeight: 'bold' }}>
+        <div
+          className="terminal-status-badge"
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 16,
+            color: '#f66',
+            fontWeight: 'bold',
+          }}
+        >
           Status unavailable
         </div>
       )}

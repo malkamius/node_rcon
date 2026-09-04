@@ -1,8 +1,8 @@
 {
   "preset": "ts-jest",
   "testEnvironment": "node",
-  "roots": ["<rootDir>/src/backend/__tests__"],
-  "moduleFileExtensions": ["ts", "js", "json"],
+  "roots": ["<rootDir>/src"],
+  "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json"],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"
   },
