@@ -300,7 +300,11 @@ export class ServerManagementModal extends React.Component<
   handleDelete = (idx: number) => {
     const profiles = this.state.profiles.slice();
     profiles.splice(idx, 1);
-    this.setState({ profiles });
+    // Deleting an instance is a configuration change, not just a UI change.
+    // Persist it immediately so closing the dialog cannot restore the entry.
+    this.setState({ profiles, editingIndex: null, error: null });
+    if (this.props.clearError) this.props.clearError();
+    this.props.onSave(profiles);
   };
 
   handleAdd = () => {

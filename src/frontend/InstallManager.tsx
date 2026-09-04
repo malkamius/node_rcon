@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SteamCmdManager } from './SteamCmdManager';
 import { BaseInstallManager } from './BaseInstallManager';
-import { InstanceManager } from './InstanceManager';
 
 interface InstallManagerProps {
   ws?: WebSocket | null;
@@ -61,17 +60,6 @@ export const InstallManager: React.FC<InstallManagerProps> = ({ ws, wsRef, handl
       <h2>Server Management</h2>
       <SteamCmdManager ws={effectiveWs} />
       <BaseInstallManager ws={effectiveWs} steamCmdDetected={steamCmdDetected} handleUpdate={handleUpdateBaseInstallFiles} active={active} />
-      <InstanceManager
-        ws={effectiveWs}
-        baseInstalls={baseInstalls}
-        steamCmdDetected={steamCmdDetected}
-        onInstanceInstalled={() => {
-          const socket = wsRef ? wsRef.current : ws;
-          if (socket && socket.readyState === 1) {
-            socket.send(JSON.stringify({ type: 'getBaseInstalls', requestId: 'mgmt1' }));
-          }
-        }}
-      />
     </div>
   );
 };

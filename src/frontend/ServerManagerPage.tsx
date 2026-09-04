@@ -113,6 +113,7 @@ export const ServerManagerPage: React.FC = () => {
   const terminalManager = useRef(new RconTerminalManager(100, wsRef));
   const broadcastResolversRef = useRef<Map<string, () => void>>(new Map());
   const [loadingSessions, setLoadingSessions] = useState<Record<string, boolean>>({});
+  const loadingSessionsRef = useRef<Record<string, boolean>>({});
   const [isMobile, setIsMobile] = useState<boolean>(
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
@@ -147,7 +148,8 @@ export const ServerManagerPage: React.FC = () => {
   // Load session lines for a server key if not already cached
   const loadSessionLines = useCallback((key: string) => {
     if (!key || !wsRef.current || wsRef.current.readyState !== 1) return;
-    if (!terminalManager.current.getSession(key).lines.length && !loadingSessions[key]) {
+    if (!terminalManager.current.getSession(key).lines.length && !loadingSessionsRef.current[key]) {
+      loadingSessionsRef.current[key] = true;
       setLoadingSessions((ls) => ({ ...ls, [key]: true }));
       wsRequest(wsRef.current, { type: 'getSessionLines', key }, (data) => {
         if (Array.isArray(data.lines)) {
@@ -159,10 +161,11 @@ export const ServerManagerPage: React.FC = () => {
           session.lines = [];
           setSessionVersion((v) => v + 1);
         }
+        loadingSessionsRef.current[key] = false;
         setLoadingSessions((ls) => ({ ...ls, [key]: false }));
       });
     }
-  }, [loadingSessions]);
+  }, []);
 
   // Stop reconnection timers
   const stopReconnectTimers = useCallback(() => {
@@ -480,6 +483,11 @@ export const ServerManagerPage: React.FC = () => {
         setError('Failed to save server profiles');
       } else {
         setServerProfiles(profiles);
+        const validKeys = new Set(profiles.map((profile) => `${profile.host}:${profile.port}`));
+        setSelectedKeys((current) => current.filter((key) => validKeys.has(key)));
+        if (selectedKeyRef.current && !validKeys.has(selectedKeyRef.current)) {
+          setSelectedKey(null);
+        }
         setError(null);
       }
     });

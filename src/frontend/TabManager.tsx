@@ -46,6 +46,11 @@ export const TabManager: React.FC<TabManagerProps> = ({
   selectedKeys = [],
   onSelectionChange
 }) => {
+  // A server is identified by its RCON endpoint.  Ignore duplicate config
+  // entries so one endpoint cannot render as two selectable rows.
+  const uniqueServerProfiles = serverProfiles.filter((profile, index, profiles) =>
+    profiles.findIndex(p => `${p.host}:${p.port}` === `${profile.host}:${profile.port}`) === index
+  );
   const [actionMsg, setActionMsg] = useState<Record<string, { type: 'success' | 'error'; text: string }>>({});
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, serverKey: '' });
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -143,7 +148,7 @@ export const TabManager: React.FC<TabManagerProps> = ({
 
   const handleSelectAll = () => {
     if (!onSelectionChange) return;
-    const allKeys = serverProfiles.map(p => `${p.host}:${p.port}`);
+    const allKeys = uniqueServerProfiles.map(p => `${p.host}:${p.port}`);
     onSelectionChange(allKeys);
   };
 
@@ -173,10 +178,10 @@ export const TabManager: React.FC<TabManagerProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
             <span style={{ fontWeight: 600, color: '#61afef' }}>
-              {selectedKeys.length} of {serverProfiles.length} selected
+              {selectedKeys.length} of {uniqueServerProfiles.length} selected
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
-              {selectedKeys.length < serverProfiles.length && (
+              {selectedKeys.length < uniqueServerProfiles.length && (
                 <button
                   onClick={handleSelectAll}
                   style={{ background: 'transparent', border: 'none', color: '#98c379', fontSize: 11, cursor: 'pointer', padding: 0 }}
@@ -265,7 +270,7 @@ export const TabManager: React.FC<TabManagerProps> = ({
 
       {/* Server List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {serverProfiles.map((profile) => {
+        {uniqueServerProfiles.map((profile) => {
           const key = profile.host + ':' + profile.port;
           const procStatus = statusMap[key];
           const running = !!procStatus?.running;
@@ -281,20 +286,20 @@ export const TabManager: React.FC<TabManagerProps> = ({
             ? 'Connected'
             : running
             ? 'Running'
-            : crashed
-            ? 'Crashed'
             : manuallyStopped
             ? 'Stopped (Manual)'
+            : crashed
+            ? 'Crashed'
             : 'Stopped';
 
           let statusColor = rconStatusMap[key]?.status === 'connecting'
             ? '#ff6'
             : running || rconStatusMap[key]?.status === 'connected'
             ? '#6f6'
-            : crashed
-            ? '#ff5555'
             : manuallyStopped
             ? '#fa0'
+            : crashed
+            ? '#ff5555'
             : '#f66';
 
           return (
