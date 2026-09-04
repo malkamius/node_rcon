@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { Request, Response, NextFunction } from 'express';
+import fetch from 'node-fetch';
 
 export interface AuthUser { id: string; email: string; role: 'admin' | 'user'; provider: 'sso' | 'local'; passwordHash?: string; }
 interface AuthConfig { users: AuthUser[]; masterPasswordHash?: string; }
@@ -69,9 +70,17 @@ export function registerAuth(app: any, config: any, configPath: string) {
     setSession(res, user); res.json({ ok: true, user });
   });
   app.post('/api/auth/logout', (req: Request, res: Response) => { const token = parseCookies(req.headers.cookie || '')[COOKIE]; if (token) sessions.delete(token); res.setHeader('Set-Cookie', `${COOKIE}=; Max-Age=0; HttpOnly; SameSite=Lax`); res.json({ ok: true }); });
-  app.get('/api/auth/callback', (req: Request, res: Response) => {
-    const email = String(req.query.email || req.query.user_email || '').trim().toLowerCase();
-    if (!email || !email.includes('@')) return res.status(400).send('SSO callback did not include a verified email.');
+  app.get('/api/auth/callback', async (req: Request, res: Response) => {
+    const code = String(req.query.code || '').trim();
+    if (!code) return res.status(400).send('SSO callback did not include an authorization code.');
+    let email = '';
+    try {
+      const tokenResponse = await fetch('https://auth.kbs-cloud.com/api/auth/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, client_id: 'node-rcon' }) });
+      if (!tokenResponse.ok) return res.status(401).send('SSO authorization code was rejected.');
+      const tokenData: any = await tokenResponse.json();
+      email = String(tokenData.user?.email || tokenData.email || '').trim().toLowerCase();
+    } catch { return res.status(502).send('Unable to verify the SSO authorization code.'); }
+    if (!email || !email.includes('@')) return res.status(401).send('SSO token did not contain a verified email.');
     let user = auth.users.find(u => u.email.toLowerCase() === email);
     if (!user) { user = { id: crypto.randomUUID(), email, role: auth.users.length ? 'user' : 'admin', provider: 'sso' }; auth.users.push(user); persist(config, configPath); }
     setSession(res, user); res.redirect('/?auth=success');
