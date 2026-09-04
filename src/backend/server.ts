@@ -20,7 +20,6 @@ import { serveArkSettingsTemplate } from './serveArkSettingsTemplate';
 import { ensureSocketServer } from './adminSocketClient';
 import { exit } from 'process';
 import { exec, spawn } from 'child_process';
-import { createModsApi } from './modsApi';
 import { authMiddleware, registerAuth } from './auth';
 import {
   parseAcfBuildId,
@@ -52,7 +51,6 @@ export { app };
 app.use(express.json());
 registerAuth(app, config, configPath);
 app.use(authMiddleware(config));
-app.use(createModsApi(config));
 
 // --- Audit Logging Utility ---
 
