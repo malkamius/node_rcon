@@ -175,6 +175,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
       setError('WebSocket not connected');
       return;
     }
+    setError(null);
     const requestId = 'req' + (requestIdCounter.current++);
     const msg = { ...payload, requestId };
     if (cb) pendingRequests.current[requestId] = cb;
@@ -182,6 +183,7 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
   }
 
   const loadBaseInstalls = () => {
+    if (!ws || ws.readyState !== 1) return;
     setLoading(true);
     sendWS({ type: 'getBaseInstalls' }, (data) => {
       mergeBaseInstalls(data.baseInstalls || []);
@@ -194,22 +196,37 @@ export const BaseInstallManager: React.FC<ExtendedBaseInstallManagerProps> = ({ 
   // Initial load and poll when active
   useEffect(() => {
     let poller: NodeJS.Timeout | undefined;
-    if (ws && ws.readyState === 1 && active) {
+    if (!ws || !active) return;
+
+    const onOpen = () => {
       loadBaseInstalls();
-      poller = setInterval(loadBaseInstalls, 10000);
+    };
+
+    if (ws.readyState === 1) {
+      loadBaseInstalls();
+    } else if (ws.readyState === 0) {
+      ws.addEventListener('open', onOpen);
     }
+
+    poller = setInterval(() => {
+      if (ws && ws.readyState === 1 && active) {
+        loadBaseInstalls();
+      }
+    }, 10000);
+
     return () => {
       if (poller) clearInterval(poller);
+      ws.removeEventListener('open', onOpen);
     };
   }, [ws, active]);
 
   // Refresh when tab becomes active
   useEffect(() => {
-    if (active && !prevActiveRef.current) {
+    if (active && !prevActiveRef.current && ws && ws.readyState === 1) {
       loadBaseInstalls();
     }
     prevActiveRef.current = active;
-  }, [active]);
+  }, [active, ws]);
 
   const handleSelect = (id: string) => setSelectedId(id === selectedId ? null : id);
 

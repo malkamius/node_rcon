@@ -47,3 +47,7 @@ log.txt
 
 logs/*.jsonl
 elevated/$logPath
+
+# Commit skill artifacts
+NEXT_COMMIT.txt
+NEXT_CHANGELOG.md

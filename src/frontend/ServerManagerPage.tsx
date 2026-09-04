@@ -51,6 +51,8 @@ import {
 } from './urlRouting';
 
 
+import { TabErrorBoundary } from './TabErrorBoundary';
+
 export const ServerManagerPage: React.FC = () => {
   const [serverProfiles, setServerProfiles] = useState<ServerProfile[]>([]);
   const [serverPlayers, setServerPlayers] = useState<Record<string, any>>({});
@@ -830,50 +832,53 @@ export const ServerManagerPage: React.FC = () => {
               </button>
             </div>
           )}
-          {activity === 'rcon' && (selectedKey || selectedKeys.length > 1) ? (
-            <RconClientWindow
-              serverProfiles={serverProfiles}
-              statusMap={statusMap}
-              rconStatusMap={rconStatusMap}
-              selectedKey={selectedKey}
-              selectedKeys={selectedKeys}
-              onTabSelect={handleTabSelect}
-              onManageServers={handleManageServers}
-              terminalManager={terminalManager.current}
-              sessionVersion={sessionVersion}
-              onSendCommand={handleSendCommand}
-              onBroadcastCommand={handleBroadcastCommand}
-              onDeselectAll={() => setSelectedKeys([])}
-              onClearLog={(key) => {
-                terminalManager.current.clear(key, wsRef.current);
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ type: 'clearSessionLines', key }));
-                }
-                setSessionVersion((v) => v + 1);
-              }}
-              currentPlayers={serverPlayers[selectedKey || ''] || { players: [], lastUpdate: null }} 
-              disabled={selectedKeys.length <= 1 && (!selectedKey || !!loadingSessions[selectedKey])}
-            />
-          ) : activity === 'config' ? (
-            <ServerConfigTab
-              serverProfiles={serverProfiles}
-              statusMap={statusMap}
-              selectedKey={selectedKey}
-              onTabSelect={handleTabSelect}
-              onManageServers={handleManageServers}
-              onViewLogs={(key) => {
-                setLogsTargetKey(key);
-                setShowLogsModal(true);
-              }}
-              wsRef={wsRef}
-            />
-          ) : activity === 'baseinstalls' ? (
-            <InstallManager 
-              handleUpdateBaseInstallFiles={handleUpdateBaseInstall}
-              ws={wsRef.current}
-              active={activity === 'baseinstalls'}
-            />
-          ) : null}
+          <TabErrorBoundary tabName={activity} key={activity}>
+            {activity === 'rcon' && (selectedKey || selectedKeys.length > 1) ? (
+              <RconClientWindow
+                serverProfiles={serverProfiles}
+                statusMap={statusMap}
+                rconStatusMap={rconStatusMap}
+                selectedKey={selectedKey}
+                selectedKeys={selectedKeys}
+                onTabSelect={handleTabSelect}
+                onManageServers={handleManageServers}
+                terminalManager={terminalManager.current}
+                sessionVersion={sessionVersion}
+                onSendCommand={handleSendCommand}
+                onBroadcastCommand={handleBroadcastCommand}
+                onDeselectAll={() => setSelectedKeys([])}
+                onClearLog={(key) => {
+                  terminalManager.current.clear(key, wsRef.current);
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({ type: 'clearSessionLines', key }));
+                  }
+                  setSessionVersion((v) => v + 1);
+                }}
+                currentPlayers={serverPlayers[selectedKey || ''] || { players: [], lastUpdate: null }} 
+                disabled={selectedKeys.length <= 1 && (!selectedKey || !!loadingSessions[selectedKey])}
+              />
+            ) : activity === 'config' ? (
+              <ServerConfigTab
+                serverProfiles={serverProfiles}
+                statusMap={statusMap}
+                selectedKey={selectedKey}
+                onTabSelect={handleTabSelect}
+                onManageServers={handleManageServers}
+                onViewLogs={(key) => {
+                  setLogsTargetKey(key);
+                  setShowLogsModal(true);
+                }}
+                wsRef={wsRef}
+              />
+            ) : activity === 'baseinstalls' ? (
+              <InstallManager 
+                handleUpdateBaseInstallFiles={handleUpdateBaseInstall}
+                ws={wsRef.current}
+                wsRef={wsRef}
+                active={activity === 'baseinstalls'}
+              />
+            ) : null}
+          </TabErrorBoundary>
         </div>
       </div>
       {/* Script Execution Modal */}

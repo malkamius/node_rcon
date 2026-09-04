@@ -66,15 +66,19 @@ export const InstanceManager: React.FC<InstanceManagerProps> = ({
                 if (pMsg.type === 'getProfiles' && pMsg.requestId === profReqId) {
                   ws.removeEventListener('message', profHandler);
                   const currentProfiles = pMsg.profiles || [];
-                  ws.send(JSON.stringify({
-                    type: 'saveProfiles',
-                    profiles: [...currentProfiles, newProfile],
-                  }));
+                  if (ws && ws.readyState === 1) {
+                    ws.send(JSON.stringify({
+                      type: 'saveProfiles',
+                      profiles: [...currentProfiles, newProfile],
+                    }));
+                  }
                 }
               } catch {}
             };
             ws.addEventListener('message', profHandler);
-            ws.send(JSON.stringify({ type: 'getProfiles', requestId: profReqId }));
+            if (ws && ws.readyState === 1) {
+              ws.send(JSON.stringify({ type: 'getProfiles', requestId: profReqId }));
+            }
 
             setSuccess('Instance installed successfully.');
             setShowModal(false);
@@ -87,12 +91,17 @@ export const InstanceManager: React.FC<InstanceManagerProps> = ({
     };
 
     ws.addEventListener('message', handleMessage);
-    ws.send(JSON.stringify({
-      type: 'installInstance',
-      ...params,
-      rconPort: params.rconPort || 27020,
-      requestId,
-    }));
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({
+        type: 'installInstance',
+        ...params,
+        rconPort: params.rconPort || 27020,
+        requestId,
+      }));
+    } else {
+      setInstalling(false);
+      setError('WebSocket not connected');
+    }
   };
 
   return (
